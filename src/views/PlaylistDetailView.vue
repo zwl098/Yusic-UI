@@ -27,6 +27,11 @@ const onRemoveSong = (song: Song) => {
     }).catch(() => {})
 }
 
+const addToQueue = (song: Song) => {
+    musicStore.addToQueue(song)
+    showToast('Added to queue')
+}
+
 const deletePlaylist = () => {
      showConfirmDialog({
         title: 'Delete Playlist',
@@ -76,6 +81,7 @@ const deletePlaylist = () => {
                     <div class="song-artist">{{ song.artist }} - {{ song.album }}</div>
                 </div>
                 <div class="song-actions">
+                    <van-icon name="clock-o" @click.stop="addToQueue(song)" color="#666" style="margin-right: 12px;" />
                     <van-icon name="cross" @click.stop="onRemoveSong(song)" color="#999" />
                 </div>
             </div>
@@ -165,6 +171,8 @@ const deletePlaylist = () => {
 
 .song-actions {
     padding: 8px;
+    display: flex;
+    align-items: center;
 }
 
 .empty-list {

@@ -18,6 +18,8 @@ export const useMusicStore = defineStore('music', () => {
     const isPlaying = ref(false)
     const playList = ref<Song[]>([])
     const audioRef = ref<HTMLAudioElement | null>(null)
+    const currentTime = ref(0)
+    const duration = ref(0)
 
     const searchMusic = async (keyword: string, source: MusicSource = 'netease') => {
         try {
@@ -30,8 +32,8 @@ export const useMusicStore = defineStore('music', () => {
                     album: item.album,
                     source: item.platform || source,
                     url: item.url,
-                    cover: item.pic,
-                    lrc: item.lrc
+                    cover: item.pic
+                    // lrc: item.lrc // Ignore lyrics from search results, fetch via API
                 }))
             }
             return []
@@ -41,9 +43,55 @@ export const useMusicStore = defineStore('music', () => {
         }
     }
 
+    const fetchLyrics = async (song: Song) => {
+        // If we already have lyrics and it's not a URL (basic check), return
+        // But since we don't set it in searchMusic, it should be empty initially.
+        if (song.lrc && !song.lrc.startsWith('http')) return
+
+        console.log('[MusicStore] Lyrics missing/invalid for:', song.name, 'Fetching via API...')
+
+        try {
+            // Priority: API getLyric
+            console.log('[MusicStore] Fetching via API...')
+            const res = await tunefreeApi.getLyric(song.id, song.source)
+            console.log('[MusicStore] Lyric API response:', res)
+
+            // Direct string response
+            if (typeof res === 'string') {
+                song.lrc = res
+                return
+            }
+
+            // Object response
+            if (res.code === 200 || (res.data && typeof res.data === 'string')) { // Some APIs strictly return 200, others might just return data
+                if (typeof res.data === 'string') {
+                    song.lrc = res.data
+                } else if (res.data && res.data.lrc) {
+                    song.lrc = res.data.lrc
+                } else {
+                    song.lrc = JSON.stringify(res.data)
+                }
+            } else if (res.lrc) {
+                // Fallback for flat object
+                song.lrc = res.lrc
+            }
+
+            // Trigger reactivity update if song is currentSong
+            if (currentSong.value && currentSong.value.id === song.id) {
+                // Pinia state is reactive.
+            }
+        } catch (e) {
+            console.error('[MusicStore] Failed to fetch lyrics:', e)
+            song.lrc = '[00:00.00] Lyrics load failed'
+        }
+    }
+
     const playSong = async (song: Song) => {
         currentSong.value = song
         isPlaying.value = true
+
+        // Fetch lyrics if missing (Background)
+        fetchLyrics(song)
 
         // Attempt to auto-play if audio element is ready
         if (audioRef.value) {
@@ -66,6 +114,44 @@ export const useMusicStore = defineStore('music', () => {
         }
     }
 
+    const addToQueue = (song: Song) => {
+        // Avoid adding the exact same song object twice if needed, or allow duplicates
+        // For now, allow duplicates as users might want to hear it again
+        playList.value.push(song)
+    }
+
+    const playNext = () => {
+        if (playList.value.length > 0) {
+            const nextSong = playList.value.shift()
+            if (nextSong) {
+                playSong(nextSong)
+            }
+        } else {
+            // Optional: Stop playing or loop? For now just stop if nothing else.
+            // But we might want to keep the current song loaded but paused?
+            // Or simply do nothing.
+            // If we want to support "Auto-Radio" later, this is where we'd fetch a new song.
+            isPlaying.value = false
+        }
+    }
+
+    const removeFromQueue = (index: number) => {
+        if (index >= 0 && index < playList.value.length) {
+            playList.value.splice(index, 1)
+        }
+    }
+
+    const clearQueue = () => {
+        playList.value = []
+    }
+
+    const seek = (time: number) => {
+        if (audioRef.value) {
+            audioRef.value.currentTime = time
+            currentTime.value = time
+        }
+    }
+
     return {
         currentSong,
         isPlaying,
@@ -73,6 +159,15 @@ export const useMusicStore = defineStore('music', () => {
         searchMusic,
         playSong,
         togglePlay,
+        addToQueue,
+        playNext,
+        removeFromQueue,
+        clearQueue,
+        seek,
+        fetchLyrics,
+        currentTime,
+        duration,
         audioRef
     }
 })
+

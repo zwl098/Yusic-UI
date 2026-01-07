@@ -15,11 +15,32 @@ const showAddToPlaylist = ref(false)
 const selectedSong = ref<Song | null>(null)
 
 const onSearch = async () => {
-  if (!keyword.value) return
+  if (!keyword.value.trim()) {
+      searchResults.value = []
+      return
+  }
   loading.value = true
-  searchResults.value = await musicStore.searchMusic(keyword.value)
-  loading.value = false
+  try {
+      searchResults.value = await musicStore.searchMusic(keyword.value)
+  } catch (e) {
+      console.error(e)
+  } finally {
+      loading.value = false
+  }
 }
+
+// Real-time search with debounce
+let searchTimer: any = null
+watch(keyword, (newVal) => {
+    if (searchTimer) clearTimeout(searchTimer)
+    if (!newVal.trim()) { // Clear results if empty
+         searchResults.value = []
+         return
+    }
+    searchTimer = setTimeout(() => {
+        onSearch()
+    }, 600)
+})
 
 const onPlay = (song: Song) => {
   musicStore.playSong(song)
@@ -42,6 +63,12 @@ const addToPlaylist = (playlistId: string) => {
         showToast('Added to playlist')
     }
 }
+
+const addToQueue = (song: Song) => {
+    musicStore.addToQueue(song)
+    showToast('Added to queue')
+}
+
 </script>
 
 <template>
@@ -49,7 +76,7 @@ const addToPlaylist = (playlistId: string) => {
     <div class="header-bg">
       <h1 class="app-title">Yusic</h1>
       <p class="app-subtitle">Discover your rhythm</p>
-      <div class="header-actions">
+      <!-- <div class="header-actions">
            <van-button 
              icon="friends-o" 
              size="small" 
@@ -70,7 +97,7 @@ const addToPlaylist = (playlistId: string) => {
            >
              Playlists
            </van-button>
-      </div>
+      </div> -->
     </div>
 
     <div class="search-section">
@@ -79,6 +106,7 @@ const addToPlaylist = (playlistId: string) => {
          placeholder="Search for songs, artists..." 
          shape="round"
          background="transparent"
+         clearable
          @search="onSearch" 
        />
     </div>
@@ -108,7 +136,9 @@ const addToPlaylist = (playlistId: string) => {
             <p class="song-album">{{ song.album }}</p>
           </div>
           <div class="card-actions">
-              <van-icon name="plus" class="add-btn" @click.stop="openAddToPlaylist(song)" />
+            <!-- 加歌单，暂时不可用 -->
+              <!-- <van-icon name="plus" class="add-btn" @click.stop="openAddToPlaylist(song)" style="margin-right: 8px;" /> -->
+              <van-icon name="clock-o" class="add-btn" @click.stop="addToQueue(song)" />
           </div>
         </div>
       </div>
@@ -184,12 +214,17 @@ const addToPlaylist = (playlistId: string) => {
 .search-section {
   margin-top: -30px;
   padding: 0 16px;
+  position: relative;
+  z-index: 10;
 }
 
 .van-search {
-  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+  /* Premium look */
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.1);
   border-radius: 20px;
-  padding: 6px;
+  padding: 8px;
 }
 
 .content-area {
@@ -294,6 +329,9 @@ const addToPlaylist = (playlistId: string) => {
 
 .card-actions {
   padding: 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .add-btn {

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { useMusicStore } from '@/stores/music'
 import { useRoomStore } from '@/stores/room'
+import { ref } from 'vue'
+import FullPlayer from './FullPlayer.vue'
 
 const musicStore = useMusicStore()
 const roomStore = useRoomStore()
@@ -24,23 +26,46 @@ const togglePlay = () => {
              roomStore.emitPause()
         }
     }
+    }
+
+const showQueue = ref(false)
+const showFullPlayer = ref(false)
+
+const onNext = () => {
+    musicStore.playNext()
 }
+
+const onRemoveFromQueue = (index: number) => {
+    musicStore.removeFromQueue(index)
+}
+
 </script>
 
 <template>
     <transition name="slide-up">
       <div class="player-bar" v-if="musicStore.currentSong">
         <div class="player-content">
-          <img :src="musicStore.currentSong.cover" class="player-cover" :class="{ rotating: musicStore.isPlaying }" />
+          <img 
+            :src="musicStore.currentSong.cover" 
+            class="player-cover" 
+            :class="{ rotating: musicStore.isPlaying }" 
+            @click="showFullPlayer = true"
+          />
           
-          <div class="player-info">
+          <div class="player-info" @click="showFullPlayer = true">
             <div class="player-title">{{ musicStore.currentSong.name }}</div>
             <div class="player-artist">{{ musicStore.currentSong.artist }}</div>
           </div>
 
           <div class="player-controls">
-            <button class="control-btn" @click.stop="togglePlay">
+             <button class="control-btn" @click.stop="togglePlay">
               <van-icon :name="musicStore.isPlaying ? 'pause' : 'play'" size="28" color="#333" />
+            </button>
+            <button class="control-btn" @click.stop="onNext">
+               <van-icon name="arrow" size="20" color="#333" />
+            </button>
+            <button class="control-btn" @click.stop="showQueue = true">
+               <van-icon name="bars" size="20" color="#333" />
             </button>
           </div>
         </div>
@@ -51,11 +76,42 @@ const togglePlay = () => {
           autoplay
           @play="musicStore.isPlaying = true"
           @pause="musicStore.isPlaying = false"
-          @ended="musicStore.isPlaying = false"
+          @ended="onNext"
+          @timeupdate="(e) => musicStore.currentTime = (e.target as HTMLAudioElement).currentTime"
+          @loadedmetadata="(e) => musicStore.duration = (e.target as HTMLAudioElement).duration"
           :ref="(el) => { if(el) musicStore.audioRef = el as HTMLAudioElement }"
         ></audio>
       </div>
     </transition>
+
+    <!-- Queue Popup -->
+    <van-popup v-model:show="showQueue" position="bottom" round :style="{ height: '60%' }">
+            <div class="queue-content">
+                <h3>Up Next</h3>
+                <div class="queue-list" v-if="musicStore.playList.length > 0">
+                    <div v-for="(song, index) in musicStore.playList" :key="index" class="queue-item">
+                        <div class="q-info">
+                            <div class="q-name">{{ song.name }}</div>
+                            <div class="q-artist">{{ song.artist }}</div>
+                        </div>
+                        <van-icon name="cross" @click="onRemoveFromQueue(index)" class="q-remove" />
+                    </div>
+                </div>
+                <div v-else class="queue-empty">
+                    Queue is empty
+                </div>
+            </div>
+    </van-popup>
+
+    <!-- Full Player Popup -->
+    <van-popup 
+        v-model:show="showFullPlayer" 
+        position="bottom" 
+        :style="{ height: '100%' }"
+        close-icon-position="top-left"
+    >
+        <FullPlayer :show="showFullPlayer" @close="showFullPlayer = false" />
+    </van-popup>
 </template>
 
 <style scoped>
@@ -125,6 +181,12 @@ const togglePlay = () => {
   text-overflow: ellipsis;
 }
 
+.player-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
 .control-btn {
   background: rgba(0,0,0,0.05);
   border: none;
@@ -156,5 +218,59 @@ const togglePlay = () => {
 .slide-up-leave-to {
   transform: translateY(100%);
   opacity: 0;
+}
+
+.queue-content {
+    padding: 24px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.queue-content h3 {
+    margin: 0 0 16px;
+    font-size: 18px;
+    color: #333;
+}
+
+.queue-list {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.queue-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid #f8f8f8;
+}
+
+.q-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.q-name {
+    font-size: 15px;
+    color: #333;
+    font-weight: 500;
+}
+
+.q-artist {
+    font-size: 12px;
+    color: #999;
+    margin-top: 2px;
+}
+
+.q-remove {
+    padding: 8px;
+    color: #999;
+}
+
+.queue-empty {
+    text-align: center;
+    color: #999;
+    margin-top: 40px;
 }
 </style>

@@ -11,6 +11,11 @@ const router = createRouter({
     },
     // About route removed
 
+    {
+      path: '/room',
+      name: 'room',
+      component: () => import('../views/RoomView.vue')
+    },
   ],
 })
 

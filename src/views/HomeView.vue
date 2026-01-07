@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useMusicStore, type Song } from '@/stores/music'
+import { useRoomStore } from '@/stores/room'
 
 const keyword = ref('')
 const searchResults = ref<Song[]>([])
@@ -16,10 +17,11 @@ const onSearch = async () => {
 
 const onPlay = (song: Song) => {
   musicStore.playSong(song)
-}
-
-const togglePlay = () => {
-  musicStore.togglePlay()
+  // Trigger sync if in room
+  const roomStore = useRoomStore()
+  if (roomStore.roomId && !roomStore.isRemoteUpdate) {
+      roomStore.emitPlay(song)
+  }
 }
 </script>
 
@@ -28,6 +30,18 @@ const togglePlay = () => {
     <div class="header-bg">
       <h1 class="app-title">Yusic</h1>
       <p class="app-subtitle">Discover your rhythm</p>
+      <div class="header-actions">
+           <van-button 
+             icon="friends-o" 
+             size="small" 
+             round 
+             color="rgba(255,255,255,0.2)" 
+             style="border:none; color: white;"
+             to="/room"
+           >
+             Together
+           </van-button>
+      </div>
     </div>
 
     <div class="search-section">
@@ -73,34 +87,7 @@ const togglePlay = () => {
       </div>
     </div>
 
-    <transition name="slide-up">
-      <div class="player-bar" v-if="musicStore.currentSong">
-        <div class="player-content">
-          <img :src="musicStore.currentSong.cover" class="player-cover" :class="{ rotating: musicStore.isPlaying }" />
-          
-          <div class="player-info">
-            <div class="player-title">{{ musicStore.currentSong.name }}</div>
-            <div class="player-artist">{{ musicStore.currentSong.artist }}</div>
-          </div>
 
-          <div class="player-controls">
-            <button class="control-btn" @click.stop="togglePlay">
-              <van-icon :name="musicStore.isPlaying ? 'pause' : 'play'" size="28" color="#333" />
-            </button>
-          </div>
-        </div>
-        
-        <!-- Hidden Audio Element -->
-        <audio 
-          :src="musicStore.currentSong.url" 
-          autoplay
-          @play="musicStore.isPlaying = true"
-          @pause="musicStore.isPlaying = false"
-          @ended="musicStore.isPlaying = false"
-          :ref="(el) => { if(el) musicStore.audioRef = el as HTMLAudioElement }"
-        ></audio>
-      </div>
-    </transition>
   </div>
 </template>
 
@@ -126,6 +113,17 @@ const togglePlay = () => {
   font-weight: 800;
   margin: 0;
   letter-spacing: -1px;
+}
+
+.header-bg {
+    position: relative;
+    /* keep existing styles, but maybe ensure flex container if needed, or absolute position the button */
+}
+
+.header-actions {
+    position: absolute;
+    top: 40px;
+    right: 24px;
 }
 
 .app-subtitle {
@@ -245,102 +243,5 @@ const togglePlay = () => {
   text-overflow: ellipsis;
 }
 
-/* Player Bar */
-.player-bar {
-  position: fixed;
-  bottom: 20px;
-  left: 16px;
-  right: 16px;
-  height: 72px;
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-radius: 20px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-  display: flex;
-  align-items: center;
-  padding: 0 16px;
-  z-index: 1000;
-  border: 1px solid rgba(255,255,255,0.5);
-}
 
-.player-content {
-  display: flex;
-  align-items: center;
-  width: 100%;
-}
-
-.player-cover {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid white;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-}
-
-.rotating {
-  animation: rotate 10s linear infinite;
-}
-
-@keyframes rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.player-info {
-  flex: 1;
-  margin: 0 16px;
-  overflow: hidden;
-}
-
-.player-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #333;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.player-artist {
-  font-size: 12px;
-  color: #666;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.control-btn {
-  background: rgba(0,0,0,0.05);
-  border: none;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.control-btn:hover {
-  background: rgba(0,0,0,0.1);
-}
-
-.control-btn:active {
-  transform: scale(0.95);
-}
-
-/* Transitions */
-.slide-up-enter-active,
-.slide-up-leave-active {
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.5, 1);
-}
-
-.slide-up-enter-from,
-.slide-up-leave-to {
-  transform: translateY(100%);
-  opacity: 0;
-}
 </style>

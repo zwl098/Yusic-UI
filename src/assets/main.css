@@ -1,9 +1,9 @@
 /* Reset and global styles */
 :root {
-  --color-background: #0f0f0f;
-  --color-text: #ffffff;
-  --color-primary: #1ed760;
-  --color-secondary: #b3b3b3;
+  --color-background: #ffffff;
+  --color-text: #333333;
+  --color-primary: #6200ea;
+  --color-secondary: #666666;
 }
 
 *,
@@ -27,6 +27,4 @@ body {
 
 #app {
   width: 100%;
-  height: 100vh;
-  overflow: hidden;
 }

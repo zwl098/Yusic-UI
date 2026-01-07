@@ -16,6 +16,16 @@ const router = createRouter({
       name: 'room',
       component: () => import('../views/RoomView.vue')
     },
+    {
+      path: '/playlists',
+      name: 'playlists',
+      component: () => import('../views/PlaylistListView.vue')
+    },
+    {
+      path: '/playlists/:id',
+      name: 'playlist-detail',
+      component: () => import('../views/PlaylistDetailView.vue')
+    },
   ],
 })
 

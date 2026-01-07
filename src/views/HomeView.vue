@@ -2,11 +2,17 @@
 import { ref, watch } from 'vue'
 import { useMusicStore, type Song } from '@/stores/music'
 import { useRoomStore } from '@/stores/room'
+import { usePlaylistStore } from '@/stores/playlist'
+import { showToast } from 'vant'
 
 const keyword = ref('')
 const searchResults = ref<Song[]>([])
 const loading = ref(false)
 const musicStore = useMusicStore()
+const playlistStore = usePlaylistStore()
+
+const showAddToPlaylist = ref(false)
+const selectedSong = ref<Song | null>(null)
 
 const onSearch = async () => {
   if (!keyword.value) return
@@ -22,6 +28,19 @@ const onPlay = (song: Song) => {
   if (roomStore.roomId && !roomStore.isRemoteUpdate) {
       roomStore.emitPlay(song)
   }
+}
+
+const openAddToPlaylist = (song: Song) => {
+    selectedSong.value = song
+    showAddToPlaylist.value = true
+}
+
+const addToPlaylist = (playlistId: string) => {
+    if (selectedSong.value) {
+        playlistStore.addSongToPlaylist(playlistId, selectedSong.value)
+        showAddToPlaylist.value = false
+        showToast('Added to playlist')
+    }
 }
 </script>
 
@@ -40,6 +59,16 @@ const onPlay = (song: Song) => {
              to="/room"
            >
              Together
+           </van-button>
+           <van-button 
+             icon="music-o" 
+             size="small" 
+             round 
+             color="rgba(255,255,255,0.2)" 
+             style="border:none; color: white; margin-left: 8px;"
+             to="/playlists"
+           >
+             Playlists
            </van-button>
       </div>
     </div>
@@ -78,6 +107,9 @@ const onPlay = (song: Song) => {
             <p class="song-artist">{{ song.artist }}</p>
             <p class="song-album">{{ song.album }}</p>
           </div>
+          <div class="card-actions">
+              <van-icon name="plus" class="add-btn" @click.stop="openAddToPlaylist(song)" />
+          </div>
         </div>
       </div>
 
@@ -89,6 +121,23 @@ const onPlay = (song: Song) => {
 
 
   </div>
+
+    <van-action-sheet v-model:show="showAddToPlaylist" title="Add to Playlist">
+        <div class="playlist-sheet">
+            <div 
+                v-for="playlist in playlistStore.playlists" 
+                :key="playlist.id" 
+                class="sheet-item"
+                @click="addToPlaylist(playlist.id)"
+            >
+                <van-icon name="music-o" />
+                <span>{{ playlist.name }}</span>
+            </div>
+            <div v-if="playlistStore.playlists.length === 0" class="sheet-empty">
+                No playlists found. Create one first!
+            </div>
+        </div>
+    </van-action-sheet>
 </template>
 
 <style scoped>
@@ -243,5 +292,35 @@ const onPlay = (song: Song) => {
   text-overflow: ellipsis;
 }
 
+.card-actions {
+  padding: 0 8px;
+}
 
+.add-btn {
+  padding: 8px;
+  color: #6200ea;
+  background: #f0f0f0;
+  border-radius: 50%;
+}
+
+.playlist-sheet {
+    padding: 16px;
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+.sheet-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 0;
+    border-bottom: 1px solid #f8f8f8;
+    font-size: 16px;
+}
+
+.sheet-empty {
+    text-align: center;
+    padding: 30px;
+    color: #999;
+}
 </style>

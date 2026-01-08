@@ -1,14 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useMusicStore } from '@/stores/music'
 import { parseLrc, type LrcLine } from '@/utils/lrc'
-import { showToast } from 'vant'
 
 const musicStore = useMusicStore()
-const props = defineProps<{
+defineProps<{
   show: boolean
 }>()
-const emit = defineEmits(['close'])
+defineEmits(['close'])
 
 const showLyrics = ref(false)
 const lyrics = ref<LrcLine[]>([])
@@ -64,6 +63,13 @@ watch(() => musicStore.currentTime, (time) => {
         scrollToCurrentLine()
     }
 })
+
+const seekToLine = (line: LrcLine) => {
+    musicStore.seek(line.time)
+    if (!musicStore.isPlaying) {
+        musicStore.togglePlay()
+    }
+}
 
 const scrollToCurrentLine = () => {
     nextTick(() => {
@@ -126,13 +132,14 @@ const onNext = () => {
                       <div v-if="lyrics.length === 0" class="no-lyrics">No Lyrics</div>
                       <div 
                         v-else
-                        v-for="(line, index) in lyrics" 
-                        :key="index" 
-                        class="lrc-line"
-                        :class="{ active: index === currentLineIndex }"
-                      >
-                          {{ line.text }}
-                      </div>
+                         v-for="(line, index) in lyrics" 
+                         :key="index" 
+                         class="lrc-line"
+                         :class="{ active: index === currentLineIndex }"
+                         @click="seekToLine(line)"
+                       >
+                           {{ line.text }}
+                       </div>
                  </div>
             </div>
 
@@ -167,6 +174,8 @@ const onNext = () => {
     color: white;
     display: flex;
     flex-direction: column;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
 }
 
 .bg-blur {
@@ -276,24 +285,33 @@ const onNext = () => {
     overflow-y: auto;
     padding: 20px 0;
     text-align: center;
-    mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
-    -webkit-mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
+    mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
 }
 
 .lrc-line {
-    padding: 8px 16px;
-    opacity: 0.5;
-    transition: all 0.3s;
-    font-size: 16px;
-    min-height: 24px;
+    padding: 12px 16px;
+    opacity: 0.4;
+    transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    font-size: 18px;
+    min-height: 28px;
+    cursor: pointer;
+    transform-origin: center;
+}
+
+.lrc-line:hover {
+    opacity: 0.7;
 }
 
 .lrc-line.active {
     opacity: 1;
-    font-size: 18px;
+    font-size: 24px;
     color: #fff;
-    font-weight: 500;
+    font-weight: 700;
     transform: scale(1.05);
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
 }
 
 .no-lyrics {

@@ -3,10 +3,21 @@ import { ref } from 'vue'
 import { io, type Socket } from 'socket.io-client'
 import { useMusicStore, type Song } from './music'
 
+interface RoomResponse {
+  success: boolean
+  roomId?: string
+  error?: string
+  currentSong?: Song
+  isPlaying?: boolean
+  currentTime?: number
+}
+
 export const useRoomStore = defineStore('room', () => {
     const socket = ref<Socket | null>(null)
     const roomId = ref<string | null>(null)
     const isConnected = ref(false)
+    const isLoading = ref(false)
+    const error = ref<string | null>(null)
     const musicStore = useMusicStore()
 
     // Flag to prevent loop (when we receive an event, we apply it, but don't want to re-emit)
@@ -26,24 +37,20 @@ export const useRoomStore = defineStore('room', () => {
             isConnected.value = false
         })
 
+        socket.value.on('connect_error', (err) => {
+            console.error('Connection error:', err)
+            error.value = "Failed to connect to server"
+            isLoading.value = false
+        })
+
+        // Legacy listeners removed in favor of callbacks
+        /*
         socket.value.on('room-created', (id: string) => {
             roomId.value = id
         })
 
-        socket.value.on('joined-room', (data: { roomId: string, currentSong: Song, isPlaying: boolean, currentTime: number }) => {
-            roomId.value = data.roomId
-            if (data.currentSong) {
-                isRemoteUpdate = true
-                musicStore.playSong(data.currentSong)
-                if (!data.isPlaying) {
-                    // If it was playing in store but paused in room, we might need to pause? 
-                    // playSong sets isPlaying=true.
-                    setTimeout(() => musicStore.audioRef?.pause(), 100)
-                    musicStore.isPlaying = false
-                }
-                isRemoteUpdate = false
-            }
-        })
+        socket.value.on('joined-room', ... )
+        */
 
         socket.value.on('sync:play', (song: Song) => {
             if (musicStore.currentSong?.id !== song.id) {
@@ -74,14 +81,72 @@ export const useRoomStore = defineStore('room', () => {
         })
     }
 
-    const createRoom = () => {
+    const createRoom = async () => {
         connect()
-        socket.value?.emit('create-room')
+        isLoading.value = true
+        error.value = null
+        
+        return new Promise<void>((resolve, reject) => {
+             const timeout = setTimeout(() => {
+                 isLoading.value = false
+                 error.value = "Connection timeout"
+                 reject(new Error("Connection timeout"))
+             }, 5000)
+
+             socket.value?.emit('create-room', (response: RoomResponse) => {
+                 clearTimeout(timeout)
+                 isLoading.value = false
+                 if (response && response.success && response.roomId) {
+                     roomId.value = response.roomId
+                     resolve()
+                 } else {
+                     error.value = "Failed to create room"
+                     reject(new Error("Failed to create room"))
+                 }
+             })
+        })
     }
 
-    const joinRoom = (id: string) => {
+    const joinRoom = async (id: string) => {
         connect()
-        socket.value?.emit('join-room', id)
+        isLoading.value = true
+        error.value = null
+
+        return new Promise<void>((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                isLoading.value = false
+                error.value = "Connection timeout"
+                reject(new Error("Connection timeout"))
+            }, 5000)
+
+            socket.value?.emit('join-room', id, (response: RoomResponse) => {
+                clearTimeout(timeout)
+                isLoading.value = false
+                if (response && response.success && response.roomId) {
+                    roomId.value = response.roomId
+                    // Apply state
+                    if (response.currentSong) {
+                        isRemoteUpdate = true
+                        musicStore.playSong(response.currentSong)
+                        if (!response.isPlaying) {
+                            setTimeout(() => musicStore.audioRef?.pause(), 100)
+                            musicStore.isPlaying = false
+                        } else {
+                             // If it IS playing, we might need to seek
+                             if (response.currentTime !== undefined && response.currentTime > 0) {
+                                 musicStore.audioRef!.currentTime = response.currentTime
+                             }
+                        }
+                        isRemoteUpdate = false
+                    }
+                    resolve()
+                } else {
+                    const msg = response?.error || "Failed to join room"
+                    error.value = msg
+                    reject(new Error(msg))
+                }
+            })
+        })
     }
 
     // Hooks to be called from UI or MusicStore watcher 
@@ -104,6 +169,23 @@ export const useRoomStore = defineStore('room', () => {
         }
     }
 
+    const leaveRoom = () => {
+        if (socket.value) {
+            socket.value.disconnect()
+            socket.value = null
+        }
+        roomId.value = null
+        isConnected.value = false
+        error.value = null
+        isLoading.value = false
+        
+        // Stop music
+        if (musicStore.audioRef) {
+            musicStore.audioRef.pause()
+            musicStore.isPlaying = false
+        }
+    }
+
     return {
         socket,
         roomId,
@@ -113,6 +195,9 @@ export const useRoomStore = defineStore('room', () => {
         emitPlay,
         emitPause,
         emitSeek,
-        isRemoteUpdate
+        isRemoteUpdate,
+        isLoading,
+        error,
+        leaveRoom
     }
 })

@@ -99,7 +99,7 @@ io.on("connection", (socket) => {
 
     // --- Room Events ---
 
-    socket.on("create-room", () => {
+    socket.on("create-room", (callback) => {
         const roomId = Math.random().toString(36).substring(2, 8);
         rooms.set(roomId, {
             id: roomId,
@@ -110,25 +110,37 @@ io.on("connection", (socket) => {
             host: socket.id
         });
         socket.join(roomId);
-        socket.emit("room-created", roomId);
         console.log(`Room created: ${roomId} by ${socket.id}`);
+        
+        // Acknowledge the creator
+        if (typeof callback === 'function') {
+            callback({ success: true, roomId });
+        }
     });
 
-    socket.on("join-room", (roomId) => {
+    socket.on("join-room", (roomId, callback) => {
         if (rooms.has(roomId)) {
             const room = rooms.get(roomId);
             room.users.push(socket.id);
             socket.join(roomId);
-            // Send current state to new joiner
-            socket.emit("joined-room", {
-                roomId,
-                currentSong: room.currentSong,
-                isPlaying: room.isPlaying,
-                currentTime: room.currentTime
-            });
+            
             console.log(`User ${socket.id} joined room ${roomId}`);
+
+            // Return current state to the joiner immediately via callback
+            if (typeof callback === 'function') {
+                callback({
+                    success: true,
+                    roomId,
+                    currentSong: room.currentSong,
+                    isPlaying: room.isPlaying,
+                    currentTime: room.currentTime
+                });
+            }
         } else {
-            socket.emit("error", "Room not found");
+            console.log(`Join failed: Room ${roomId} not found`);
+            if (typeof callback === 'function') {
+                callback({ success: false, error: "Room not found" });
+            }
         }
     });
 

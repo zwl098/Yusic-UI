@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRoomStore } from '@/stores/room'
 import { useRouter } from 'vue-router'
+import { showToast } from 'vant'
 
 const roomStore = useRoomStore()
 const router = useRouter()
@@ -11,10 +12,18 @@ const onCreateRoom = () => {
   roomStore.createRoom()
 }
 
-const onJoinRoom = () => {
+const onJoinRoom = async () => {
   if (roomIdInput.value) {
-    roomStore.joinRoom(roomIdInput.value)
+    try {
+        await roomStore.joinRoom(roomIdInput.value)
+    } catch (e) {
+        showToast((e as Error).message || 'Failed to join')
+    }
   }
+}
+
+const onLeaveRoom = () => {
+    roomStore.leaveRoom()
 }
 
 const onBack = () => {
@@ -31,8 +40,8 @@ const onBack = () => {
 
     <div v-if="!roomStore.roomId" class="actions">
       <div class="action-card create" @click="onCreateRoom">
-        <van-icon name="add-o" size="48" />
-        <h3>Create Room</h3>
+        <van-icon name="add-o" size="48" :class="{ 'spin': roomStore.isLoading && !roomIdInput }" />
+        <h3>{{ roomStore.isLoading && !roomIdInput ? 'Creating...' : 'Create Room' }}</h3>
         <p>Start a listening party and invite friends</p>
       </div>
       
@@ -48,7 +57,15 @@ const onBack = () => {
           class="room-input"
         >
           <template #button>
-             <van-button size="small" type="primary" @click="onJoinRoom" :disabled="!roomIdInput">Join</van-button>
+             <van-button 
+               size="small" 
+               type="primary" 
+               @click="onJoinRoom" 
+               :disabled="!roomIdInput || roomStore.isLoading"
+               :loading="roomStore.isLoading && !!roomIdInput"
+             >
+               Join
+             </van-button>
           </template>
         </van-field>
       </div>
@@ -63,6 +80,14 @@ const onBack = () => {
             <van-tag type="primary" size="medium">Active</van-tag>
          </div>
          <p class="instruction">Play a song to sync with everyone!</p>
+         <van-button 
+            type="default" 
+            size="small" 
+            class="leave-btn"
+            @click="onLeaveRoom"
+         >
+            Leave Room
+         </van-button>
       </div>
     </div>
   </div>
@@ -166,6 +191,21 @@ const onBack = () => {
 .status-icon {
     margin-bottom: 24px;
     animation: bounce 2s infinite;
+}
+
+.leave-btn {
+    margin-top: 24px;
+    border-radius: 8px;
+    color: #666;
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 .room-code {

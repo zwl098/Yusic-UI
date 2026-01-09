@@ -13,7 +13,7 @@ export interface Playlist {
 export const usePlaylistStore = defineStore('playlist', () => {
     const playlists = ref<Playlist[]>([])
     const currentPlaylist = ref<Playlist | null>(null)
-    const socket = io('http://localhost:3000')
+    const socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000')
 
     // Initial load
     socket.emit('playlist:get-all')

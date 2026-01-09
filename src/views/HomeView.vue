@@ -88,7 +88,7 @@ const addToQueue = (song: Song) => {
     <div class="header-bg">
       <h1 class="app-title">Yusic</h1>
       <p class="app-subtitle">Discover your rhythm</p>
-      <!-- <div class="header-actions">
+      <div class="header-actions">
            <van-button 
              icon="friends-o" 
              size="small" 
@@ -99,7 +99,7 @@ const addToQueue = (song: Song) => {
            >
              Together
            </van-button>
-           <van-button 
+           <!-- <van-button 
              icon="music-o" 
              size="small" 
              round 
@@ -108,8 +108,8 @@ const addToQueue = (song: Song) => {
              to="/playlists"
            >
              Playlists
-           </van-button>
-      </div> -->
+           </van-button> -->
+      </div>
     </div>
 
     <div class="search-section">

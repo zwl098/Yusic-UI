@@ -1,4 +1,5 @@
 import './assets/main.css'
+import 'vant/es/toast/style'
 
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'

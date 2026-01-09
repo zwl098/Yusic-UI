@@ -3,7 +3,7 @@ import { ref, watch } from 'vue'
 import { useMusicStore, type Song } from '@/stores/music'
 import { useRoomStore } from '@/stores/room'
 import { usePlaylistStore } from '@/stores/playlist'
-import { showToast } from 'vant'
+import { showToast, showSuccessToast, showFailToast } from 'vant'
 
 const keyword = ref('')
 const searchResults = ref<Song[]>([])
@@ -13,6 +13,7 @@ const playlistStore = usePlaylistStore()
 
 const showAddToPlaylist = ref(false)
 const selectedSong = ref<Song | null>(null)
+const addedSongs = ref(new Set<string>())
 
 const onSearch = async () => {
   if (!keyword.value.trim()) {
@@ -65,8 +66,19 @@ const addToPlaylist = (playlistId: string) => {
 }
 
 const addToQueue = (song: Song) => {
-    musicStore.addToQueue(song)
-    showToast('Added to queue')
+    const success = musicStore.addToQueue(song)
+    
+    // Always show checkmark to confirm it is in the queue
+    addedSongs.value.add(song.id)
+    setTimeout(() => {
+        addedSongs.value.delete(song.id)
+    }, 2000)
+
+    if (success) {
+        showSuccessToast('Added to queue')
+    } else {
+        showFailToast('Already in queue')
+    }
 }
 
 </script>
@@ -138,7 +150,21 @@ const addToQueue = (song: Song) => {
           <div class="card-actions">
             <!-- 加歌单，暂时不可用 -->
               <!-- <van-icon name="plus" class="add-btn" @click.stop="openAddToPlaylist(song)" style="margin-right: 8px;" /> -->
-              <van-icon name="clock-o" class="add-btn" @click.stop="addToQueue(song)" />
+              <transition name="van-fade" mode="out-in">
+                  <van-icon 
+                    v-if="addedSongs.has(song.id)" 
+                    name="success" 
+                    class="add-btn success" 
+                    key="success"
+                  />
+                  <van-icon 
+                    v-else 
+                    name="clock-o" 
+                    class="add-btn" 
+                    @click.stop="addToQueue(song)" 
+                    key="add"
+                  />
+              </transition>
           </div>
         </div>
       </div>
@@ -339,6 +365,12 @@ const addToQueue = (song: Song) => {
   color: #6200ea;
   background: #f0f0f0;
   border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.add-btn.success {
+    color: white;
+    background: #07c160;
 }
 
 .playlist-sheet {

@@ -115,9 +115,9 @@ export const useMusicStore = defineStore('music', () => {
     }
 
     const addToQueue = (song: Song) => {
-        // Avoid adding the exact same song object twice if needed, or allow duplicates
-        // For now, allow duplicates as users might want to hear it again
+        if (playList.value.some(item => item.id === song.id)) return false
         playList.value.push(song)
+        return true
     }
 
     const playNext = () => {

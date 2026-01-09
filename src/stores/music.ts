@@ -117,6 +117,12 @@ export const useMusicStore = defineStore('music', () => {
     const addToQueue = (song: Song) => {
         if (playList.value.some(item => item.id === song.id)) return false
         playList.value.push(song)
+        
+        // Auto-play if not playing
+        if (!currentSong.value) {
+            playSong(song)
+        }
+        
         return true
     }
 

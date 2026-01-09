@@ -107,6 +107,7 @@ io.on("connection", (socket) => {
             currentSong: null,
             isPlaying: false,
             currentTime: 0,
+            queue: [], // Add queue
             host: socket.id
         });
         socket.join(roomId);
@@ -133,7 +134,10 @@ io.on("connection", (socket) => {
                     roomId,
                     currentSong: room.currentSong,
                     isPlaying: room.isPlaying,
-                    currentTime: room.currentTime
+                    currentSong: room.currentSong,
+                    isPlaying: room.isPlaying,
+                    currentTime: room.currentTime,
+                    queue: room.queue // Send queue on join
                 });
             }
         } else {
@@ -167,6 +171,14 @@ io.on("connection", (socket) => {
         if (room) {
             room.currentTime = time;
             socket.to(roomId).emit("sync:seek", time);
+        }
+    });
+
+    socket.on("sync:queue", (roomId, queue) => {
+        const room = rooms.get(roomId);
+        if (room) {
+            room.queue = queue;
+            socket.to(roomId).emit("sync:queue", queue);
         }
     });
 

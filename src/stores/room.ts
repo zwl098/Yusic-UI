@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { io, type Socket } from 'socket.io-client'
 import { useMusicStore, type Song } from './music'
+import { showToast } from 'vant'
 
 interface RoomResponse {
   success: boolean
@@ -10,6 +11,7 @@ interface RoomResponse {
   currentSong?: Song
   isPlaying?: boolean
   currentTime?: number
+  queue?: Song[]
 }
 
 export const useRoomStore = defineStore('room', () => {
@@ -79,6 +81,24 @@ export const useRoomStore = defineStore('room', () => {
                 isRemoteUpdate = false
             }
         })
+
+        socket.value.on('sync:queue', (queue: Song[]) => {
+            if (queue) {
+                // Check if new songs were added (simple check: length increased)
+                // For a more robust check, we could compare IDs, but this is a good start for UX
+                if (queue.length > musicStore.playList.length && isConnected.value) {
+                     const newSongsCount = queue.length - musicStore.playList.length
+                     const lastSong = queue[queue.length - 1]
+                     showToast(`Received ${newSongsCount} new song(s): ${lastSong?.name || 'Unknown'}`)
+                }
+
+                isRemoteUpdate = true
+                musicStore.playList = queue
+                // Wait for reaction to finish? Usually synchronous for ref update
+                // But deep watcher might trigger unless we wait nextTick, but boolean flag typically works if synchronous
+                setTimeout(() => { isRemoteUpdate = false }, 0)
+            }
+        })
     }
 
     const createRoom = async () => {
@@ -139,6 +159,11 @@ export const useRoomStore = defineStore('room', () => {
                         }
                         isRemoteUpdate = false
                     }
+                    if (response.queue) {
+                        isRemoteUpdate = true
+                        musicStore.playList = response.queue
+                        setTimeout(() => { isRemoteUpdate = false }, 0)
+                    }
                     resolve()
                 } else {
                     const msg = response?.error || "Failed to join room"
@@ -168,6 +193,37 @@ export const useRoomStore = defineStore('room', () => {
             socket.value?.emit('sync:seek', roomId.value, time)
         }
     }
+
+    const emitQueue = (queue: Song[]) => {
+        if (!isRemoteUpdate && roomId.value) {
+            socket.value?.emit('sync:queue', roomId.value, queue)
+        }
+    }
+
+    // Watch playlist changes
+    watch(() => musicStore.playList, (newQueue) => {
+        if (isConnected.value && roomId.value && !isRemoteUpdate) {
+            emitQueue(newQueue)
+        }
+    }, { deep: true })
+
+    // Watch current song changes to sync
+    watch(() => musicStore.currentSong, (newSong) => {
+        if (isConnected.value && roomId.value && !isRemoteUpdate && newSong) {
+             emitPlay(newSong)
+        }
+    }, { deep: true })
+
+    // Watch playing state to sync (pause/resume)
+    watch(() => musicStore.isPlaying, (playing) => {
+         if (isConnected.value && roomId.value && !isRemoteUpdate) {
+             if (playing) {
+                 if (musicStore.currentSong) emitPlay(musicStore.currentSong)
+             } else {
+                 emitPause()
+             }
+         }
+    })
 
     const leaveRoom = () => {
         if (socket.value) {

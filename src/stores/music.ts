@@ -113,56 +113,39 @@ export const useMusicStore = defineStore('music', () => {
                 else if (res.data && res.data.url) finalUrl = res.data.url
             }
 
-            if (!finalUrl) {
-                throw new Error('Failed to get song URL')
+            if (finalUrl) {
+                // Force HTTPS
+                finalUrl = finalUrl.replace(/http:/g, 'https:')
+                // Update URL
+                if (currentSong.value && currentSong.value.id === song.id) {
+                    currentSong.value.url = finalUrl
+                    console.log('[MusicStore] URL Refreshed:', finalUrl)
+                }
+            } else {
+                console.warn('[MusicStore] Failed to get fresh URL, using default if available')
             }
 
-            // Force HTTPS for the initial request
-            finalUrl = finalUrl.replace(/http:/g, 'https:')
-            console.log('[MusicStore] URL obtained:', finalUrl)
-
-            // 2. Fetch Audio as Blob (Bypass SW context issues)
-            // This runs in Window context, so CSP Upgrade-Insecure-Requests applies here!
-            import('vant').then(({ showLoadingToast, closeToast, showFailToast }) => {
-                const toast = showLoadingToast({
-                    message: 'Loading Audio...',
-                    forbidClick: true,
-                    duration: 0
-                })
-
-                fetch(finalUrl)
-                    .then(response => {
-                        if (!response.ok) throw new Error(`Network response was not ok: ${response.status}`)
-                        return response.blob()
-                    })
-                    .then(blob => {
-                        currentObjectUrl = URL.createObjectURL(blob)
-                        // Update the song URL to the local blob URL
-                        if (currentSong.value && currentSong.value.id === song.id) {
-                            currentSong.value.url = currentObjectUrl
-                            console.log('[MusicStore] Blob URL ready:', currentObjectUrl)
-
-                            // 3. Play
-                            isPlaying.value = true
-                            import('vue').then(({ nextTick }) => {
-                                nextTick(() => {
-                                    if (audioRef.value) {
-                                        audioRef.value.play().catch(e => {
-                                            console.warn('Play failed:', e)
-                                        })
-                                    }
+            // 3. Play
+            // Use nextTick to allow Vue to update ref/src, but keep within microtask for iOS
+            import('vue').then(({ nextTick }) => {
+                nextTick(() => {
+                    const audio = audioRef.value
+                    if (audio) {
+                        const playPromise = audio.play()
+                        if (playPromise !== undefined) {
+                            playPromise.catch(error => {
+                                console.warn('[MusicStore] Autoplay prevented or interrupted:', error)
+                                import('vant').then(({ showFailToast }) => {
+                                    showFailToast({
+                                        message: `Play Error: ${error.name}`,
+                                        duration: 3000
+                                    })
                                 })
+                                isPlaying.value = false // Sync state
                             })
                         }
-                    })
-                    .catch(err => {
-                        console.error('[MusicStore] Blob fetch failed:', err)
-                        showFailToast(`Load Failed: ${err.message}`)
-                        isPlaying.value = false
-                    })
-                    .finally(() => {
-                        toast.close()
-                    })
+                    }
+                })
             })
 
         } catch (e: any) {

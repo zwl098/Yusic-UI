@@ -96,7 +96,6 @@ watch(() => [musicStore.audioRef, musicStore.isPlaying], ([ref, playing]) => {
     <audio 
       v-if="musicStore.currentSong"
       :src="musicStore.currentSong.url" 
-      crossorigin="anonymous"
       autoplay
       playsinline
       @play="musicStore.isPlaying = true"

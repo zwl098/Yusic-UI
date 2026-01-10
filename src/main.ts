@@ -25,9 +25,4 @@ window.addEventListener('unhandledrejection', (event) => {
     event.preventDefault()
 })
 
-
-import VConsole from 'vconsole'
-
-const vConsole = new VConsole()
-
 app.mount('#app')

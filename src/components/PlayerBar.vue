@@ -89,20 +89,23 @@ watch(() => [musicStore.audioRef, musicStore.isPlaying], ([ref, playing]) => {
           </div>
         </div>
         
-        <!-- Hidden Audio Element -->
-        <audio 
-          :src="musicStore.currentSong.url" 
-          crossorigin="anonymous"
-          autoplay
-          @play="musicStore.isPlaying = true"
-          @pause="musicStore.isPlaying = false"
-          @ended="onNext"
-          @timeupdate="(e) => musicStore.currentTime = (e.target as HTMLAudioElement).currentTime"
-          @loadedmetadata="(e) => musicStore.duration = (e.target as HTMLAudioElement).duration"
-          :ref="(el) => { if(el) musicStore.audioRef = el as HTMLAudioElement }"
-        ></audio>
       </div>
     </transition>
+    
+    <!-- Audio Element (Always Mounted) -->
+    <audio 
+      v-if="musicStore.currentSong"
+      :src="musicStore.currentSong.url" 
+      crossorigin="anonymous"
+      autoplay
+      playsinline
+      @play="musicStore.isPlaying = true"
+      @pause="musicStore.isPlaying = false"
+      @ended="onNext"
+      @timeupdate="(e) => musicStore.currentTime = (e.target as HTMLAudioElement).currentTime"
+      @loadedmetadata="(e) => musicStore.duration = (e.target as HTMLAudioElement).duration"
+      :ref="(el) => { if(el) musicStore.audioRef = el as HTMLAudioElement }"
+    ></audio>
 
     <!-- Queue Popup -->
     <van-popup v-model:show="showQueue" position="bottom" round :style="{ height: '60%' }">

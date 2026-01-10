@@ -94,17 +94,22 @@ export const useMusicStore = defineStore('music', () => {
         fetchLyrics(song)
 
         // Attempt to auto-play if audio element is ready
-        if (audioRef.value) {
-            setTimeout(() => {
-                const playPromise = audioRef.value?.play()
-                if (playPromise !== undefined) {
-                    playPromise.catch(error => {
-                        console.warn('[MusicStore] Autoplay prevented or interrupted:', error)
-                        isPlaying.value = false // Sync state
-                    })
+        // Attempt to auto-play if audio element is ready
+        // Use nextTick to allow Vue to update ref/src, but keep within microtask for iOS
+        import('vue').then(({ nextTick }) => {
+            nextTick(() => {
+                const audio = audioRef.value
+                if (audio) {
+                    const playPromise = audio.play()
+                    if (playPromise !== undefined) {
+                        playPromise.catch(error => {
+                            console.warn('[MusicStore] Autoplay prevented or interrupted:', error)
+                            isPlaying.value = false // Sync state
+                        })
+                    }
                 }
-            }, 100)
-        }
+            })
+        })
     }
 
     const togglePlay = () => {

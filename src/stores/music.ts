@@ -117,12 +117,12 @@ export const useMusicStore = defineStore('music', () => {
     const addToQueue = (song: Song) => {
         if (playList.value.some(item => item.id === song.id)) return false
         playList.value.push(song)
-        
+
         // Auto-play if not playing
         if (!currentSong.value) {
             playSong(song)
         }
-        
+
         return true
     }
 
@@ -158,6 +158,30 @@ export const useMusicStore = defineStore('music', () => {
         }
     }
 
+    const audioContext = ref<AudioContext | null>(null)
+    const analyser = ref<AnalyserNode | null>(null)
+
+    const initAudioContext = () => {
+        if (!audioRef.value || audioContext.value) return
+
+        try {
+            const AudioContextIdx = window.AudioContext || (window as any).webkitAudioContext
+            const ctx = new AudioContextIdx()
+            const ana = ctx.createAnalyser()
+            ana.fftSize = 512
+
+            const source = ctx.createMediaElementSource(audioRef.value)
+            source.connect(ana)
+            ana.connect(ctx.destination)
+
+            audioContext.value = ctx
+            analyser.value = ana
+            console.log('[MusicStore] AudioContext initialized')
+        } catch (e) {
+            console.error('[MusicStore] Failed to init AudioContext:', e)
+        }
+    }
+
     return {
         currentSong,
         isPlaying,
@@ -173,7 +197,10 @@ export const useMusicStore = defineStore('music', () => {
         fetchLyrics,
         currentTime,
         duration,
-        audioRef
+        audioRef,
+        audioContext,
+        analyser,
+        initAudioContext
     }
 })
 

@@ -4,6 +4,7 @@ import { useMusicStore, type Song } from '@/stores/music'
 import { useRoomStore } from '@/stores/room'
 import { usePlaylistStore } from '@/stores/playlist'
 import { showToast, showSuccessToast, showFailToast } from 'vant'
+import { flyToElement } from '@/utils/animation'
 
 const keyword = ref('')
 const searchResults = ref<Song[]>([])
@@ -65,7 +66,7 @@ const addToPlaylist = (playlistId: string) => {
     }
 }
 
-const addToQueue = (song: Song) => {
+const addToQueue = (song: Song, event?: MouseEvent) => {
     const success = musicStore.addToQueue(song)
     
     // Always show checkmark to confirm it is in the queue
@@ -76,6 +77,9 @@ const addToQueue = (song: Song) => {
 
     if (success) {
         showSuccessToast('Added to queue')
+        if (event && song.cover) {
+            flyToElement(event, '#queue-icon', song.cover)
+        }
     } else {
         showFailToast('Already in queue')
     }
@@ -161,7 +165,7 @@ const addToQueue = (song: Song) => {
                     v-else 
                     name="clock-o" 
                     class="add-btn" 
-                    @click.stop="addToQueue(song)" 
+                    @click.stop="addToQueue(song, $event)" 
                     key="add"
                   />
               </transition>

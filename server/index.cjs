@@ -134,7 +134,11 @@ io.on("connection", (socket) => {
             room.users.push(socket.id);
             socket.join(roomId);
 
-            console.log(`User ${socket.id} joined room ${roomId}`);
+            // Notify others
+            socket.to(roomId).emit("notification", "A user joined the room");
+
+            // Broadcast user count
+            io.to(roomId).emit("room-users", room.users.length);
 
             // Calculate current playback time for the joining user
             let processedCurrentTime = room.currentTime;
@@ -203,6 +207,13 @@ io.on("connection", (socket) => {
         }
     });
 
+    socket.on("emote", (roomId, emoji) => {
+        const room = rooms.get(roomId);
+        if (room) {
+            socket.to(roomId).emit("emote", emoji);
+        }
+    });
+
     socket.on("disconnect", () => {
         console.log("User disconnected:", socket.id);
         // Cleanup logic could go here (remove user from rooms, destroy empty rooms)
@@ -221,6 +232,10 @@ io.on("connection", (socket) => {
                         }
                     }, 30000);
                     roomTimeouts.set(roomId, timeout);
+                } else {
+                    // Notify others
+                    socket.to(roomId).emit("notification", "A user left the room");
+                    io.to(roomId).emit("room-users", room.users.length);
                 }
             }
         }

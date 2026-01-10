@@ -23,6 +23,9 @@ export const useRoomStore = defineStore('room', () => {
     const error = ref<string | null>(null)
     const musicStore = useMusicStore()
 
+    const userCount = ref(0)
+    const lastEmote = ref<{ emoji: string, id: number } | null>(null)
+
     // Flag to prevent loop (when we receive an event, we apply it, but don't want to re-emit)
     let isRemoteUpdate = false
 
@@ -54,6 +57,18 @@ export const useRoomStore = defineStore('room', () => {
         }
     }
 
+    const onNotification = (msg: string) => {
+        showToast(msg)
+    }
+
+    const onRoomUsers = (count: number) => {
+        userCount.value = count
+    }
+
+    const onEmote = (emoji: string) => {
+        lastEmote.value = { emoji, id: Date.now() + Math.random() }
+    }
+
     const onSyncPlay = (song: Song) => {
         if (!roomId.value) return
         if (musicStore.currentSong?.id !== song.id) {
@@ -73,7 +88,8 @@ export const useRoomStore = defineStore('room', () => {
             isRemoteUpdate = true
             musicStore.audioRef?.play()
             musicStore.isPlaying = true
-            isRemoteUpdate = false
+            // Delay reset to avoid catching our own event
+            setTimeout(() => { isRemoteUpdate = false }, 500)
         }
     }
 
@@ -82,7 +98,7 @@ export const useRoomStore = defineStore('room', () => {
         isRemoteUpdate = true
         musicStore.audioRef?.pause()
         musicStore.isPlaying = false
-        isRemoteUpdate = false
+        setTimeout(() => { isRemoteUpdate = false }, 500)
     }
 
     const onSyncSeek = (time: number) => {
@@ -90,7 +106,7 @@ export const useRoomStore = defineStore('room', () => {
         if (musicStore.audioRef) {
             isRemoteUpdate = true
             musicStore.audioRef.currentTime = time
-            isRemoteUpdate = false
+            setTimeout(() => { isRemoteUpdate = false }, 500)
         }
     }
 
@@ -106,7 +122,7 @@ export const useRoomStore = defineStore('room', () => {
 
             isRemoteUpdate = true
             musicStore.playList = queue
-            setTimeout(() => { isRemoteUpdate = false }, 0)
+            setTimeout(() => { isRemoteUpdate = false }, 500)
         }
     }
 
@@ -116,6 +132,9 @@ export const useRoomStore = defineStore('room', () => {
         socket.value.on('connect', onConnect)
         socket.value.on('disconnect', onDisconnect)
         socket.value.on('connect_error', onConnectError)
+        socket.value.on('notification', onNotification)
+        socket.value.on('room-users', onRoomUsers)
+        socket.value.on('emote', onEmote)
         socket.value.on('sync:play', onSyncPlay)
         socket.value.on('sync:pause', onSyncPause)
         socket.value.on('sync:seek', onSyncSeek)
@@ -128,6 +147,9 @@ export const useRoomStore = defineStore('room', () => {
         socket.value.off('connect', onConnect)
         socket.value.off('disconnect', onDisconnect)
         socket.value.off('connect_error', onConnectError)
+        socket.value.off('notification', onNotification)
+        socket.value.off('room-users', onRoomUsers)
+        socket.value.off('emote', onEmote)
         socket.value.off('sync:play', onSyncPlay)
         socket.value.off('sync:pause', onSyncPause)
         socket.value.off('sync:seek', onSyncSeek)
@@ -261,6 +283,14 @@ export const useRoomStore = defineStore('room', () => {
         }
     }
 
+    const emitEmote = (emoji: string) => {
+        if (roomId.value) {
+            socket.value?.emit('emote', roomId.value, emoji)
+            // Display locally too
+            onEmote(emoji)
+        }
+    }
+
     // Watch playlist changes
     watch(() => musicStore.playList, (newQueue) => {
         if (isConnected.value && roomId.value && !isRemoteUpdate) {
@@ -297,6 +327,7 @@ export const useRoomStore = defineStore('room', () => {
         isConnected.value = false
         error.value = null
         isLoading.value = false
+        userCount.value = 0
 
         // Stop music
         if (musicStore.audioRef) {
@@ -309,11 +340,14 @@ export const useRoomStore = defineStore('room', () => {
         socket,
         roomId,
         isConnected,
+        userCount,
+        lastEmote,
         createRoom,
         joinRoom,
         emitPlay,
         emitPause,
         emitSeek,
+        emitEmote,
         isRemoteUpdate,
         isLoading,
         error,

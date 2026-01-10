@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useMusicStore } from '@/stores/music'
 import { useRoomStore } from '@/stores/room'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import FullPlayer from './FullPlayer.vue'
 
 const musicStore = useMusicStore()
@@ -39,6 +39,17 @@ const onRemoveFromQueue = (index: number) => {
     musicStore.removeFromQueue(index)
 }
 
+// Init Audio Context once audio element is ready and user interacts (play)
+watch(() => [musicStore.audioRef, musicStore.isPlaying], ([ref, playing]) => {
+    if (ref && playing) {
+        if (!musicStore.audioContext) {
+            musicStore.initAudioContext()
+        } else if (musicStore.audioContext.state === 'suspended') {
+            musicStore.audioContext.resume()
+        }
+    }
+})
+
 </script>
 
 <template>
@@ -54,7 +65,12 @@ const onRemoveFromQueue = (index: number) => {
           
           <div class="player-info" @click="showFullPlayer = true">
             <div class="player-title">{{ musicStore.currentSong.name }}</div>
-            <div class="player-artist">{{ musicStore.currentSong.artist }}</div>
+            <div class="player-sub">
+                <span class="player-artist">{{ musicStore.currentSong.artist }}</span>
+                <span class="player-users" v-if="roomStore.userCount > 1">
+                    <van-icon name="friends" /> {{ roomStore.userCount }}
+                </span>
+            </div>
           </div>
 
           <div class="player-controls">
@@ -64,7 +80,7 @@ const onRemoveFromQueue = (index: number) => {
             <button class="control-btn" @click.stop="onNext">
                <van-icon name="arrow" size="20" color="#333" />
             </button>
-            <button class="control-btn" @click.stop="showQueue = true">
+            <button class="control-btn" @click.stop="showQueue = true" id="queue-icon">
                <van-icon name="bars" size="20" color="#333" />
             </button>
           </div>
@@ -73,6 +89,7 @@ const onRemoveFromQueue = (index: number) => {
         <!-- Hidden Audio Element -->
         <audio 
           :src="musicStore.currentSong.url" 
+          crossorigin="anonymous"
           autoplay
           @play="musicStore.isPlaying = true"
           @pause="musicStore.isPlaying = false"
@@ -179,6 +196,25 @@ const onRemoveFromQueue = (index: number) => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.player-sub {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow: hidden;
+}
+
+.player-users {
+    font-size: 10px;
+    background: #f0f0f0;
+    padding: 2px 6px;
+    border-radius: 10px;
+    color: #666;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
 }
 
 .player-controls {

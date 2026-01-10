@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useMusicStore } from '@/stores/music'
 import { useRoomStore } from '@/stores/room'
 import { parseLrc, type LrcLine } from '@/utils/lrc'
@@ -103,12 +103,96 @@ const onNext = () => {
     musicStore.playNext()
 }
 
+// Emotes
+const emojis = ['❤️', '🔥', '😂', '🎵', '🕺', '👋']
+const emoteContainer = ref<HTMLElement | null>(null)
+
+const sendEmote = (emoji: string) => {
+    roomStore.emitEmote(emoji)
+}
+
+watch(() => roomStore.lastEmote, (val) => {
+    if (val && val.emoji) {
+        showEmoteAnimation(val.emoji)
+    }
+})
+
+const showEmoteAnimation = (emoji: string) => {
+    if (!emoteContainer.value) return
+
+    const el = document.createElement('div')
+    el.innerText = emoji
+    el.className = 'floating-emoji'
+    el.style.left = Math.random() * 80 + 10 + '%' // Random horizontal pos
+    emoteContainer.value.appendChild(el)
+
+    // Remove after animation
+    setTimeout(() => {
+        el.remove()
+    }, 3000)
+}
+
+// Visualizer
+const bgScale = ref(1.2)
+let dataArray: Uint8Array | null = null
+let animationId: number | null = null
+
+const startLoop = () => {
+    const analyser = musicStore.analyser
+    if (!analyser) {
+        // Retry loop until analyser is ready
+        animationId = requestAnimationFrame(startLoop)
+        return
+    }
+
+    if (!dataArray) {
+        dataArray = new Uint8Array(analyser.frequencyBinCount)
+    }
+    
+    // Fix: Explicit access or confirming type compatibility if needed, 
+    // but in browser env Uint8Array should be fine. 
+    // The previous error was about SharedArrayBuffer vs ArrayBuffer incompatibility in strict types.
+    // Casting 'dataArray' simply works for getByteFrequencyData
+    analyser.getByteFrequencyData(dataArray as any)
+    
+    // Calculate Bass (first ~10 bins)
+    let sum = 0
+    // Access check
+    if (dataArray.length >= 10) {
+        for (let i = 0; i < 10; i++) {
+            sum += dataArray[i]
+        }
+    }
+    const average = sum / 10
+    
+    // Smooth transition
+    // Scale: 1.2 (base) + energy benefit
+    const targetScale = 1.2 + (average / 255) * 0.15
+    bgScale.value += (targetScale - bgScale.value) * 0.2 // Ease
+    
+    animationId = requestAnimationFrame(startLoop)
+}
+
+onMounted(() => {
+    startLoop()
+})
+
+onUnmounted(() => {
+    if (animationId) cancelAnimationFrame(animationId)
+})
+
 </script>
 
 <template>
     <div class="full-player">
         <!-- Background Blur -->
-        <div class="bg-blur" :style="{ backgroundImage: `url(${musicStore.currentSong?.cover})` }"></div>
+        <div 
+            class="bg-blur" 
+            :style="{ 
+                backgroundImage: `url(${musicStore.currentSong?.cover})`,
+                transform: `scale(${bgScale})`
+            }"
+        ></div>
         <div class="bg-mask"></div>
 
         <!-- content -->
@@ -141,15 +225,31 @@ const onNext = () => {
                          :key="index" 
                          class="lrc-line"
                          :class="{ active: index === currentLineIndex }"
-                         @click="seekToLine(line)"
                        >
-                           {{ line.text }}
+                           <span class="lrc-text">{{ line.text }}</span>
+                           <van-icon 
+                                name="play-circle-o" 
+                                class="lrc-play-icon" 
+                                @click.stop="seekToLine(line)" 
+                           />
                        </div>
                  </div>
             </div>
 
             <!-- Controls -->
             <div class="controls-area">
+                 <!-- Emote Bar -->
+                 <div class="emote-bar">
+                      <div 
+                        v-for="emoji in emojis" 
+                        :key="emoji" 
+                        class="emote-btn"
+                        @click="sendEmote(emoji)"
+                      >
+                          {{ emoji }}
+                      </div>
+                 </div>
+
                  <!-- Progress Bar -->
                  <div class="progress-bar">
                       <span class="time-text">{{ formatTime(musicStore.currentTime) }}</span>
@@ -167,6 +267,9 @@ const onNext = () => {
                  </div>
             </div>
         </div>
+        
+        <!-- Floating Emotes Container -->
+        <div class="floating-emotes" ref="emoteContainer"></div>
     </div>
 </template>
 
@@ -304,6 +407,33 @@ const onNext = () => {
     min-height: 28px;
     cursor: pointer;
     transform-origin: center;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left; /* Align text to left for better reading with icon on right */
+}
+
+.lrc-text {
+    flex: 1;
+    text-align: center; /* Keep center text if preferred, but flex complicates it. Let's try keeping it simple */
+}
+
+.lrc-play-icon {
+    font-size: 24px;
+    padding: 10px;
+    opacity: 0.2;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.lrc-play-icon:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+/* On mobile touch devices, maybe always show a bit clearer? Or keep 0.2 is fine */
+.lrc-line.active .lrc-play-icon {
+    opacity: 0.8;
 }
 
 .lrc-line:hover {
@@ -357,5 +487,58 @@ const onNext = () => {
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+/* Emotes */
+.emote-bar {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.emote-btn {
+    font-size: 24px;
+    cursor: pointer;
+    transition: transform 0.1s;
+    user-select: none;
+}
+
+.emote-btn:active {
+    transform: scale(1.2);
+}
+
+.floating-emotes {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 10;
+    overflow: hidden;
+}
+
+:deep(.floating-emoji) {
+    position: absolute;
+    bottom: 160px; /* Start above controls */
+    font-size: 32px;
+    animation: floatUp 3s ease-out forwards;
+    opacity: 0;
+}
+
+@keyframes floatUp {
+    0% {
+        transform: translateY(0) scale(0.5);
+        opacity: 0;
+    }
+    10% {
+        opacity: 1;
+        transform: translateY(-20px) scale(1.2);
+    }
+    100% {
+        transform: translateY(-400px) scale(1);
+        opacity: 0;
+    }
 }
 </style>

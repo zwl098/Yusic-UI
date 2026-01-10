@@ -192,8 +192,72 @@ watch(() => musicStore.analyser, (newVal) => {
 
 onUnmounted(() => {
     if (animationId) cancelAnimationFrame(animationId)
+    // Close PiP on unmount
+    if (pipWindow.value) {
+        pipWindow.value.close()
+    }
 })
 
+// PiP Logic
+const isPipSupported = 'documentPictureInPicture' in window
+const pipTarget = ref<HTMLElement | null>(null)
+const pipWindow = ref<any>(null)
+
+const togglePip = async () => {
+    if (pipWindow.value) {
+        pipWindow.value.close()
+        return
+    }
+
+    try {
+        // @ts-ignore
+        const pip = await window.documentPictureInPicture.requestWindow({
+            width: 400,
+            height: 150
+        })
+        
+        pipWindow.value = pip
+
+        // Copy styles
+        Array.from(document.styleSheets).forEach((styleSheet) => {
+            try {
+                if (styleSheet.href) {
+                     const link = document.createElement('link')
+                     link.rel = 'stylesheet'
+                     link.type = 'text/css'
+                     link.href = styleSheet.href
+                     pip.document.head.appendChild(link)
+                } else if (styleSheet.cssRules) {
+                     const style = document.createElement('style')
+                     Array.from(styleSheet.cssRules).forEach(rule => {
+                         style.appendChild(document.createTextNode(rule.cssText))
+                     })
+                     pip.document.head.appendChild(style)
+                }
+            } catch (e) {
+                console.warn(e)
+            }
+        })
+
+        // Create container, but manual style injection for scope might be needed
+        // For simplicity, we inject a root div
+        const root = pip.document.createElement('div')
+        root.id = 'pip-root'
+        root.style.height = '100%'
+        pip.document.body.appendChild(root)
+        pip.document.body.style.margin = '0'
+        
+        pipTarget.value = root
+
+        pip.addEventListener('pagehide', () => {
+            pipTarget.value = null
+            pipWindow.value = null
+        })
+
+    } catch (e) {
+        console.error('Failed to open PiP:', e)
+    }
+}
 </script>
 
 <template>
@@ -217,8 +281,35 @@ onUnmounted(() => {
                     <div class="title">{{ musicStore.currentSong?.name }}</div>
                     <div class="artist">{{ musicStore.currentSong?.artist }}</div>
                 </div>
-                <div class="spacer"></div>
+                <div class="actions">
+                    <van-icon 
+                        name="desktop-o" 
+                        size="24" 
+                        color="white" 
+                        @click="togglePip" 
+                        v-if="isPipSupported"
+                        style="margin-right: 16px;" 
+                    />
+                    <div class="spacer" v-else></div>
+                </div>
             </div>
+
+            <!-- PiP Content (Teleported) -->
+            <Teleport :to="pipTarget" v-if="pipTarget">
+                <div class="pip-container" @click="togglePlay">
+                    <div class="pip-bg" :style="{ backgroundImage: `url(${musicStore.currentSong?.cover})` }"></div>
+                    <div class="pip-mask"></div>
+                    <div class="pip-content">
+                        <div class="pip-line active">
+                            {{ lyrics[currentLineIndex]?.text || 'No Lyrics' }}
+                        </div>
+                        <div class="pip-line next" v-if="lyrics[currentLineIndex + 1]">
+                            {{ lyrics[currentLineIndex + 1]?.text }}
+                        </div>
+                    </div>
+                </div>
+            </Teleport>
+
 
             <!-- Main Area -->
             <div class="main-area" @click="showLyrics = !showLyrics">
@@ -253,7 +344,7 @@ onUnmounted(() => {
             <!-- Controls -->
             <div class="controls-area">
                  <!-- Emote Bar -->
-                 <div class="emote-bar">
+                 <div class="emote-bar" v-if="roomStore.roomId">
                       <div 
                         v-for="emoji in emojis" 
                         :key="emoji" 
@@ -565,4 +656,71 @@ onUnmounted(() => {
         opacity: 0;
     }
 }
+
+
+/* PiP Styles (Global or deep because they are teleported) */
+:deep(.pip-container) {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #121212;
+    font-family: 'Inter', -apple-system, sans-serif;
+    cursor: pointer; /* Click to play/pause */
+    user-select: none;
+}
+
+:deep(.pip-bg) {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center;
+    filter: blur(15px) brightness(0.4); /* Darker for better text contrast */
+    z-index: 0;
+    transform: scale(1.1); /* Prevent blur edges */
+}
+
+:deep(.pip-content) {
+    position: relative;
+    z-index: 10;
+    text-align: center;
+    color: white;
+    width: 100%;
+    padding: 0 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+:deep(.pip-line) {
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    line-height: 1.2;
+    padding: 2px 0;
+}
+
+:deep(.pip-line.active) {
+    font-size: 28px; /* Larger font */
+    font-weight: 900;
+    background: linear-gradient(to bottom, #fff 0%, #ddd 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));
+    margin-bottom: 4px;
+    max-width: 95%;
+}
+
+:deep(.pip-line.next) {
+    font-size: 14px;
+    opacity: 0.6;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+}
+
+
 </style>

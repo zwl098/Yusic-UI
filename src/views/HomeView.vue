@@ -3,6 +3,7 @@ import { ref, watch, nextTick } from 'vue'
 import { useMusicStore, type Song } from '@/stores/music'
 import { useRoomStore } from '@/stores/room'
 import { usePlaylistStore } from '@/stores/playlist'
+import { useAppStore } from '@/stores/app'
 import { showToast, showSuccessToast, showFailToast } from 'vant'
 import { flyToElement } from '@/utils/animation'
 
@@ -11,6 +12,7 @@ const searchResults = ref<Song[]>([])
 const loading = ref(false)
 const musicStore = useMusicStore()
 const playlistStore = usePlaylistStore()
+const appStore = useAppStore()
 
 const showAddToPlaylist = ref(false)
 const selectedSong = ref<Song | null>(null)
@@ -165,6 +167,18 @@ const insertToQueue = (song: Song, event?: MouseEvent) => {
       <h1 class="app-title">Yusic</h1>
       <p class="app-subtitle">Discover your rhythm</p>
       <div class="header-actions">
+           <van-button 
+             v-if="appStore.showInstallButton"
+             icon="down" 
+             size="small" 
+             round 
+             color="rgba(255,255,255,0.2)" 
+             style="border:none; color: white; margin-right: 8px;"
+             @click="appStore.installApp()"
+           >
+             Install
+           </van-button>
+
            <van-button 
              icon="friends-o" 
              size="small" 

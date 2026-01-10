@@ -23,7 +23,13 @@ instance.interceptors.response.use(
         return response.data
     },
     (error) => {
-        console.error('API Request Error:', error)
+        if (error.code === 'ECONNABORTED') {
+            console.error('[API] Request timeout')
+        } else if (error.response) {
+            console.error(`[API] Error ${error.response.status}:`, error.response.data)
+        } else {
+            console.error('[API] Network Error:', error.message)
+        }
         return Promise.reject(error)
     }
 )
@@ -31,7 +37,7 @@ instance.interceptors.response.use(
 export const request = async <T = any>(
     endpoint: string,
     options: AxiosRequestConfig = {}
-): Promise<T> => {
+): Promise<ApiResponse<T>> => {
     try {
         const response = await instance.request<any, T>({
             url: endpoint,

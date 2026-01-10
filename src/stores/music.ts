@@ -96,9 +96,13 @@ export const useMusicStore = defineStore('music', () => {
         // Attempt to auto-play if audio element is ready
         if (audioRef.value) {
             setTimeout(() => {
-                audioRef.value?.play().catch(e => {
-                    console.warn('Autoplay prevented:', e)
-                })
+                const playPromise = audioRef.value?.play()
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.warn('[MusicStore] Autoplay prevented or interrupted:', error)
+                        isPlaying.value = false // Sync state
+                    })
+                }
             }, 100)
         }
     }

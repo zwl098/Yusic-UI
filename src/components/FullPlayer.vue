@@ -6,7 +6,7 @@ import { parseLrc, type LrcLine } from '@/utils/lrc'
 
 const musicStore = useMusicStore()
 const roomStore = useRoomStore()
-defineProps<{
+const props = defineProps<{
   show: boolean
 }>()
 defineEmits(['close'])
@@ -29,7 +29,7 @@ watch(() => musicStore.currentSong, (newSong) => {
     } else {
         lyrics.value = []
         // Trigger fetch if missing
-        musicStore.fetchLyrics(newSong)
+        // musicStore.fetchLyrics(newSong) // Logic moved to music.ts playSong
     }
     currentLineIndex.value = 0
 }, { immediate: true, deep: true })
@@ -138,12 +138,9 @@ let dataArray: Uint8Array | null = null
 let animationId: number | null = null
 
 const startLoop = () => {
+    if (!props.show) return // Don't run if hidden
     const analyser = musicStore.analyser
-    if (!analyser) {
-        // Retry loop until analyser is ready
-        animationId = requestAnimationFrame(startLoop)
-        return
-    }
+    if (!analyser) return
 
     if (!dataArray) {
         dataArray = new Uint8Array(analyser.frequencyBinCount)
@@ -158,7 +155,7 @@ const startLoop = () => {
     // Calculate Bass (first ~10 bins)
     let sum = 0
     // Access check
-    if (dataArray.length >= 10) {
+    if (dataArray && dataArray.length >= 10) {
         for (let i = 0; i < 10; i++) {
             sum += dataArray[i]
         }
@@ -173,8 +170,24 @@ const startLoop = () => {
     animationId = requestAnimationFrame(startLoop)
 }
 
+watch(() => props.show, (val) => {
+    if (val) {
+        startLoop()
+    } else {
+        if (animationId) cancelAnimationFrame(animationId)
+    }
+})
+
 onMounted(() => {
-    startLoop()
+    if (props.show && musicStore.analyser) {
+        startLoop()
+    }
+})
+
+watch(() => musicStore.analyser, (newVal) => {
+    if (newVal && props.show) {
+        startLoop()
+    }
 })
 
 onUnmounted(() => {
@@ -211,6 +224,7 @@ onUnmounted(() => {
             <div class="main-area" @click="showLyrics = !showLyrics">
                  <!-- Vinyl Mode -->
                  <div class="vinyl-wrapper" v-show="!showLyrics">
+                      <div class="stylus" :class="{ playing: musicStore.isPlaying }"></div>
                       <div class="vinyl-disc" :class="{ rotating: musicStore.isPlaying }">
                           <img :src="musicStore.currentSong?.cover || 'https://via.placeholder.com/300'" class="cover-img" />
                       </div>
@@ -297,6 +311,8 @@ onUnmounted(() => {
     filter: blur(40px);
     transform: scale(1.2);
     z-index: 0;
+    will-change: transform;
+    transition: transform 0.1s linear; /* Smoother visualizer updates */
 }
 
 .bg-mask {

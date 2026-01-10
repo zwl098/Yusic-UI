@@ -129,6 +129,7 @@ watch(() => [musicStore.audioRef, musicStore.isPlaying], ([ref, playing]) => {
         position="bottom" 
         :style="{ height: '100%' }"
         close-icon-position="top-left"
+        :lazy-render="false"
     >
         <FullPlayer :show="showFullPlayer" @close="showFullPlayer = false" />
     </van-popup>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import { useMusicStore, type Song } from '@/stores/music'
 import { useRoomStore } from '@/stores/room'
 import { usePlaylistStore } from '@/stores/playlist'
@@ -15,15 +15,64 @@ const playlistStore = usePlaylistStore()
 const showAddToPlaylist = ref(false)
 const selectedSong = ref<Song | null>(null)
 const addedSongs = ref(new Set<string>())
+const searchHistory = ref<string[]>([])
+
+// Load history on mount
+const loadHistory = () => {
+    try {
+        const h = localStorage.getItem('search_history')
+        if (h) searchHistory.value = JSON.parse(h)
+    } catch (e) {}
+}
+
+loadHistory()
+
+const saveHistory = (kw: string) => {
+    if (!kw) return
+    // Remove if exists
+    const idx = searchHistory.value.indexOf(kw)
+    if (idx > -1) searchHistory.value.splice(idx, 1)
+    
+    // Add to front
+    searchHistory.value.unshift(kw)
+    
+    // Limit to 10
+    if (searchHistory.value.length > 10) searchHistory.value.pop()
+    
+    localStorage.setItem('search_history', JSON.stringify(searchHistory.value))
+}
+
+const clearHistory = () => {
+    searchHistory.value = []
+    localStorage.removeItem('search_history')
+}
+
+const onHistoryClick = (kw: string) => {
+    keyword.value = kw
+    onSearch()
+}
 
 const onSearch = async () => {
-  if (!keyword.value.trim()) {
+  if (searchTimer) clearTimeout(searchTimer)
+  await nextTick()
+  if (searchTimer) clearTimeout(searchTimer)
+  
+  const searchKw = keyword.value
+  if (!searchKw.trim()) {
       searchResults.value = []
       return
   }
   loading.value = true
   try {
-      searchResults.value = await musicStore.searchMusic(keyword.value)
+      const results = await musicStore.searchMusic(searchKw)
+      
+      // If keyword changed (e.g. cleared) while searching, ignore results
+      if (keyword.value !== searchKw) return
+
+      searchResults.value = results
+      if (searchKw.trim()) {
+          saveHistory(searchKw.trim())
+      }
   } catch (e) {
       console.error(e)
   } finally {
@@ -150,6 +199,28 @@ const insertToQueue = (song: Song, event?: MouseEvent) => {
        />
     </div>
 
+    <!-- Search History -->
+    <div class="history-section" v-if="!keyword && searchHistory.length > 0">
+        <div class="history-header">
+            <span>Recent</span>
+            <van-icon name="delete-o" @click="clearHistory" />
+        </div>
+        <div class="history-tags">
+            <van-tag 
+                v-for="item in searchHistory" 
+                :key="item" 
+                round 
+                size="medium" 
+                color="#f0f0f0" 
+                text-color="#666"
+                class="history-tag"
+                @click="onHistoryClick(item)"
+            >
+                {{ item }}
+            </van-tag>
+        </div>
+    </div>
+
     <div class="content-area">
       <div v-if="loading" class="loading-state">
         <van-loading type="spinner" color="#6200ea" />
@@ -164,7 +235,20 @@ const insertToQueue = (song: Song, event?: MouseEvent) => {
           @click="onPlay(song)"
         >
           <div class="card-image">
-            <img :src="song.cover || 'https://via.placeholder.com/60'" alt="cover" loading="lazy" />
+            <van-image 
+                width="100%" 
+                height="100%" 
+                fit="cover" 
+                :src="song.cover || 'https://via.placeholder.com/60'"
+            >
+                <template v-slot:loading>
+                    <van-loading type="spinner" size="20" />
+                </template>
+                <template v-slot:error>
+                    <van-icon name="photo-fail" color="#ccc" />
+                </template>
+            </van-image>
+
             <div class="play-overlay">
               <van-icon name="play" />
             </div>
@@ -278,6 +362,29 @@ const insertToQueue = (song: Song, event?: MouseEvent) => {
   padding: 0 16px;
   position: relative;
   z-index: 10;
+}
+
+.history-section {
+    padding: 16px 24px;
+}
+
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #999;
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+.history-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.history-tag {
+    padding: 4px 12px;
 }
 
 .van-search {

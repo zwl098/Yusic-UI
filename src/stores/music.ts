@@ -31,8 +31,8 @@ export const useMusicStore = defineStore('music', () => {
                     artist: item.artist,
                     album: item.album,
                     source: item.platform || source,
-                    url: item.url.replace(/^http:/, 'https:'),
-                    cover: item.pic.replace(/^http:/, 'https:')
+                    url: item.url.replace(/http:/g, 'https:'),
+                    cover: item.pic.replace(/http:/g, 'https:')
                     // lrc: item.lrc // Ignore lyrics from search results, fetch via API
                 }))
             }

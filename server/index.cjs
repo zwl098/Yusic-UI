@@ -7,6 +7,7 @@ const io = new Server({
 });
 
 const rooms = new Map();
+const roomTimeouts = new Map();
 
 const fs = require('fs');
 const path = require('path');
@@ -107,12 +108,13 @@ io.on("connection", (socket) => {
             currentSong: null,
             isPlaying: false,
             currentTime: 0,
+            lastUpdateTime: Date.now(),
             queue: [], // Add queue
             host: socket.id
         });
         socket.join(roomId);
         console.log(`Room created: ${roomId} by ${socket.id}`);
-        
+
         // Acknowledge the creator
         if (typeof callback === 'function') {
             callback({ success: true, roomId });
@@ -121,11 +123,25 @@ io.on("connection", (socket) => {
 
     socket.on("join-room", (roomId, callback) => {
         if (rooms.has(roomId)) {
+            // Cancel deletion since someone is joining
+            if (roomTimeouts.has(roomId)) {
+                clearTimeout(roomTimeouts.get(roomId));
+                roomTimeouts.delete(roomId);
+                console.log(`Room ${roomId} deletion cancelled (user joined)`);
+            }
+
             const room = rooms.get(roomId);
             room.users.push(socket.id);
             socket.join(roomId);
-            
+
             console.log(`User ${socket.id} joined room ${roomId}`);
+
+            // Calculate current playback time for the joining user
+            let processedCurrentTime = room.currentTime;
+            if (room.isPlaying && room.lastUpdateTime) {
+                const elapsed = (Date.now() - room.lastUpdateTime) / 1000;
+                processedCurrentTime += elapsed;
+            }
 
             // Return current state to the joiner immediately via callback
             if (typeof callback === 'function') {
@@ -136,7 +152,7 @@ io.on("connection", (socket) => {
                     isPlaying: room.isPlaying,
                     currentSong: room.currentSong,
                     isPlaying: room.isPlaying,
-                    currentTime: room.currentTime,
+                    currentTime: processedCurrentTime,
                     queue: room.queue // Send queue on join
                 });
             }
@@ -149,19 +165,23 @@ io.on("connection", (socket) => {
     });
 
     // Sync events
-    socket.on("sync:play", (roomId, song) => {
+    socket.on("sync:play", (roomId, song, time) => {
         const room = rooms.get(roomId);
         if (room) {
             room.currentSong = song;
             room.isPlaying = true;
+            room.currentTime = time || 0;
+            room.lastUpdateTime = Date.now();
             socket.to(roomId).emit("sync:play", song);
         }
     });
 
-    socket.on("sync:pause", (roomId) => {
+    socket.on("sync:pause", (roomId, time) => {
         const room = rooms.get(roomId);
         if (room) {
             room.isPlaying = false;
+            room.currentTime = time || room.currentTime;
+            room.lastUpdateTime = Date.now();
             socket.to(roomId).emit("sync:pause");
         }
     });
@@ -170,6 +190,7 @@ io.on("connection", (socket) => {
         const room = rooms.get(roomId);
         if (room) {
             room.currentTime = time;
+            room.lastUpdateTime = Date.now();
             socket.to(roomId).emit("sync:seek", time);
         }
     });
@@ -190,8 +211,16 @@ io.on("connection", (socket) => {
             if (index !== -1) {
                 room.users.splice(index, 1);
                 if (room.users.length === 0) {
-                    rooms.delete(roomId);
-                    console.log(`Room ${roomId} deleted (empty)`);
+                    console.log(`Room ${roomId} is empty. Scheduling deletion in 30s.`);
+                    // Schedule deletion
+                    const timeout = setTimeout(() => {
+                        if (rooms.has(roomId) && rooms.get(roomId).users.length === 0) {
+                            rooms.delete(roomId);
+                            roomTimeouts.delete(roomId);
+                            console.log(`Room ${roomId} deleted (timeout)`);
+                        }
+                    }, 30000);
+                    roomTimeouts.set(roomId, timeout);
                 }
             }
         }

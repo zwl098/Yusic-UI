@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { io } from 'socket.io-client'
 import type { Song } from './music'
+import { socketService } from '../services/socket'
 
 export interface Playlist {
     id: string
@@ -13,10 +13,19 @@ export interface Playlist {
 export const usePlaylistStore = defineStore('playlist', () => {
     const playlists = ref<Playlist[]>([])
     const currentPlaylist = ref<Playlist | null>(null)
-    const socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000')
+    const socket = socketService.getSocket()
+
+    const fetchPlaylists = () => {
+        socket.emit('playlist:get-all')
+    }
 
     // Initial load
-    socket.emit('playlist:get-all')
+    fetchPlaylists()
+
+    // Re-fetch on connect (fix for reconnection)
+    socket.on('connect', () => {
+        fetchPlaylists()
+    })
 
     socket.on('playlist:list', (list: Playlist[]) => {
         playlists.value = list

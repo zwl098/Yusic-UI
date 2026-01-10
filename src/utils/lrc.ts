@@ -33,21 +33,27 @@ export function parseLrc(lrc: string | undefined): LrcLine[] {
     // Post-process to add interludes
     const finalResult: LrcLine[] = []
     for (let i = 0; i < result.length; i++) {
-        finalResult.push(result[i])
+        const item = result[i]
+        if (item) {
+            finalResult.push(item)
+        }
 
         // If not last line
         if (i < result.length - 1) {
             const current = result[i]
             const next = result[i + 1]
-            const gap = next.time - current.time
 
-            // If gap > 12s, insert interlude
-            if (gap > 12) {
-                finalResult.push({
-                    time: current.time + 5, // 5s after current line ends
-                    text: '✨ Music... ✨',
-                    isInterlude: true
-                })
+            if (current && next) {
+                const gap = next.time - current.time
+
+                // If gap > 12s, insert interlude
+                if (gap > 12) {
+                    finalResult.push({
+                        time: current.time + 5, // 5s after current line ends
+                        text: '✨ Music... ✨',
+                        isInterlude: true
+                    })
+                }
             }
         }
     }

@@ -5,6 +5,7 @@ export interface ApiResponse<T = any> {
     msg: string
     data: T
     url?: string
+    [key: string]: any
 }
 
 const BASE_URL = import.meta.env.DEV ? '/api' : 'https://music-dl.sayqz.com/api'
@@ -39,7 +40,7 @@ export const request = async <T = any>(
     options: AxiosRequestConfig = {}
 ): Promise<ApiResponse<T>> => {
     try {
-        const response = await instance.request<any, T>({
+        const response = await instance.request<any, ApiResponse<T>>({
             url: endpoint,
             ...options
         })

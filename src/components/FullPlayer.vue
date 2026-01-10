@@ -156,8 +156,12 @@ const startLoop = () => {
     let sum = 0
     // Access check
     if (dataArray && dataArray.length >= 10) {
+        const arr = dataArray
         for (let i = 0; i < 10; i++) {
-            sum += dataArray[i]
+            const val = arr[i]
+            if (val !== undefined) {
+                sum += val
+            }
         }
     }
     const average = sum / 10

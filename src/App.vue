@@ -3,7 +3,11 @@ import PlayerBar from './components/PlayerBar.vue'
 </script>
 
 <template>
-  <RouterView />
+  <RouterView v-slot="{ Component }">
+    <Transition name="fade" mode="out-in">
+      <component :is="Component" />
+    </Transition>
+  </RouterView>
   <PlayerBar />
 </template>
 

@@ -227,11 +227,12 @@ const insertToQueue = (song: Song, event?: MouseEvent) => {
         <p>Searching...</p>
       </div>
       
-      <div v-else-if="searchResults.length > 0" class="song-list">
+      <TransitionGroup name="list" tag="div" class="song-list" v-else-if="searchResults.length > 0" appear>
         <div 
-          v-for="song in searchResults" 
+          v-for="(song, index) in searchResults" 
           :key="song.id" 
           class="song-card"
+          :style="{ transitionDelay: `${index * 0.05}s` }"
           @click="onPlay(song)"
         >
           <div class="card-image">
@@ -287,7 +288,7 @@ const insertToQueue = (song: Song, event?: MouseEvent) => {
               </transition>
           </div>
         </div>
-      </div>
+      </TransitionGroup>
 
       <div v-else class="empty-state">
         <van-icon name="music-o" size="64" color="#ddd" />
@@ -295,8 +296,6 @@ const insertToQueue = (song: Song, event?: MouseEvent) => {
       </div>
     </div>
 
-
-  </div>
 
     <van-action-sheet v-model:show="showAddToPlaylist" title="Add to Playlist">
         <div class="playlist-sheet">
@@ -314,6 +313,7 @@ const insertToQueue = (song: Song, event?: MouseEvent) => {
             </div>
         </div>
     </van-action-sheet>
+  </div>
 </template>
 
 <style scoped>
@@ -541,5 +541,23 @@ const insertToQueue = (song: Song, event?: MouseEvent) => {
     text-align: center;
     padding: 30px;
     color: #999;
+}
+
+/* List Transitions - Scoped to ensure specificity over song-card */
+.song-card.list-move,
+.song-card.list-enter-active,
+.song-card.list-leave-active {
+  transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.list-enter-from,
+.list-leave-to {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.list-leave-active {
+  position: absolute;
+  width: 100%;
 }
 </style>

@@ -34,6 +34,11 @@ const onSearch = async () => {
 // Real-time search with debounce
 let searchTimer: any = null
 watch(keyword, (newVal) => {
+    // Notify room that we are typing (throttled/debounced separately or simple trigger)
+    // Simple trigger: just emit. The store doesn't limit frequency, but we should maybe limit it here to Avoid flooding?
+    // Let's limit it to once per 1s.
+    triggerTyping()
+
     if (searchTimer) clearTimeout(searchTimer)
     if (!newVal.trim()) { // Clear results if empty
          searchResults.value = []
@@ -43,6 +48,16 @@ watch(keyword, (newVal) => {
         onSearch()
     }, 600)
 })
+
+let lastTypingTime = 0
+const triggerTyping = () => {
+    const now = Date.now()
+    if (now - lastTypingTime > 1500 && keyword.value.trim().length > 0) {
+        lastTypingTime = now
+        const roomStore = useRoomStore()
+        roomStore.emitTyping()
+    }
+}
 
 const onPlay = (song: Song) => {
   musicStore.playSong(song)
@@ -82,6 +97,14 @@ const addToQueue = (song: Song, event?: MouseEvent) => {
         }
     } else {
         showFailToast('Already in queue')
+    }
+}
+
+const insertToQueue = (song: Song, event?: MouseEvent) => {
+    musicStore.insertToNext(song)
+    showSuccessToast('Will play next')
+    if (event && song.cover) {
+        flyToElement(event, '#queue-icon', song.cover)
     }
 }
 
@@ -161,13 +184,22 @@ const addToQueue = (song: Song, event?: MouseEvent) => {
                     class="add-btn success" 
                     key="success"
                   />
-                  <van-icon 
-                    v-else 
-                    name="clock-o" 
-                    class="add-btn" 
-                    @click.stop="addToQueue(song, $event)" 
-                    key="add"
-                  />
+                  <div class="action-group" v-else>
+                      <van-icon 
+                        name="upgrade" 
+                        class="add-btn" 
+                        @click.stop="insertToQueue(song, $event)" 
+                        style="transform: rotate(90deg);"
+                        title="Play Next"
+                      />
+                      <van-icon 
+                        name="clock-o" 
+                        class="add-btn" 
+                        @click.stop="addToQueue(song, $event)" 
+                        key="add"
+                        title="Add to Queue"
+                      />
+                  </div>
               </transition>
           </div>
         </div>
@@ -362,6 +394,12 @@ const addToQueue = (song: Song, event?: MouseEvent) => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.action-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .add-btn {

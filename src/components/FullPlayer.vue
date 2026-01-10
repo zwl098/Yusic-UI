@@ -224,7 +224,7 @@ onUnmounted(() => {
                          v-for="(line, index) in lyrics" 
                          :key="index" 
                          class="lrc-line"
-                         :class="{ active: index === currentLineIndex }"
+                         :class="{ active: index === currentLineIndex, interlude: line.isInterlude }"
                        >
                            <span class="lrc-text">{{ line.text }}</span>
                            <van-icon 
@@ -447,6 +447,14 @@ onUnmounted(() => {
     font-weight: 700;
     transform: scale(1.05);
     text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+}
+
+.lrc-line.interlude {
+    font-family: 'Georgia', serif;
+    font-size: 16px;
+    font-style: italic;
+    opacity: 0.8;
+    color: #ffd700;
 }
 
 .no-lyrics {

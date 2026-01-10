@@ -1,6 +1,7 @@
 export interface LrcLine {
     time: number
     text: string
+    isInterlude?: boolean
 }
 
 export function parseLrc(lrc: string | undefined): LrcLine[] {
@@ -22,10 +23,34 @@ export function parseLrc(lrc: string | undefined): LrcLine[] {
             const text = line.replace(timeReg, '').trim()
 
             if (text) {
+                // Check for explicit instrumental tags
+                // if (text.match(/^\[(inst|music)\]/i)) ...
                 result.push({ time, text })
             }
         }
     }
 
-    return result
+    // Post-process to add interludes
+    const finalResult: LrcLine[] = []
+    for (let i = 0; i < result.length; i++) {
+        finalResult.push(result[i])
+
+        // If not last line
+        if (i < result.length - 1) {
+            const current = result[i]
+            const next = result[i + 1]
+            const gap = next.time - current.time
+
+            // If gap > 12s, insert interlude
+            if (gap > 12) {
+                finalResult.push({
+                    time: current.time + 5, // 5s after current line ends
+                    text: '✨ Music... ✨',
+                    isInterlude: true
+                })
+            }
+        }
+    }
+
+    return finalResult
 }

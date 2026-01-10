@@ -25,6 +25,8 @@ export const useRoomStore = defineStore('room', () => {
 
     const userCount = ref(0)
     const lastEmote = ref<{ emoji: string, id: number } | null>(null)
+    const isSomeoneTyping = ref(false)
+    let typingTimeout: any = null
 
     // Flag to prevent loop (when we receive an event, we apply it, but don't want to re-emit)
     let isRemoteUpdate = false
@@ -69,12 +71,26 @@ export const useRoomStore = defineStore('room', () => {
         lastEmote.value = { emoji, id: Date.now() + Math.random() }
     }
 
-    const onSyncPlay = (song: Song) => {
+    const onRoomTyping = () => {
+        isSomeoneTyping.value = true
+        if (typingTimeout) clearTimeout(typingTimeout)
+        typingTimeout = setTimeout(() => {
+            isSomeoneTyping.value = false
+        }, 3000)
+    }
+
+    const onSyncPlay = (song: Song, time: number, senderId?: string) => {
         if (!roomId.value) return
         if (musicStore.currentSong?.id !== song.id) {
+            // Song changed (Switch)
+            if (senderId) {
+                showToast(`User ${senderId.slice(-4)} switched to: ${song.name}`)
+            }
+
             isRemoteUpdate = true
             musicStore.playSong(song)
-            isRemoteUpdate = false
+            // Delay reset to avoid catching our own event
+            setTimeout(() => { isRemoteUpdate = false }, 500)
         } else {
             // Even if ID matches, we might need to update lyrics if the sender has them but we don't
             if (song.lrc && musicStore.currentSong && musicStore.currentSong.lrc !== song.lrc) {
@@ -135,6 +151,7 @@ export const useRoomStore = defineStore('room', () => {
         socket.value.on('notification', onNotification)
         socket.value.on('room-users', onRoomUsers)
         socket.value.on('emote', onEmote)
+        socket.value.on('room-typing', onRoomTyping)
         socket.value.on('sync:play', onSyncPlay)
         socket.value.on('sync:pause', onSyncPause)
         socket.value.on('sync:seek', onSyncSeek)
@@ -150,6 +167,7 @@ export const useRoomStore = defineStore('room', () => {
         socket.value.off('notification', onNotification)
         socket.value.off('room-users', onRoomUsers)
         socket.value.off('emote', onEmote)
+        socket.value.off('room-typing', onRoomTyping)
         socket.value.off('sync:play', onSyncPlay)
         socket.value.off('sync:pause', onSyncPause)
         socket.value.off('sync:seek', onSyncSeek)
@@ -291,6 +309,12 @@ export const useRoomStore = defineStore('room', () => {
         }
     }
 
+    const emitTyping = () => {
+        if (roomId.value) {
+            socket.value?.emit('typing', roomId.value)
+        }
+    }
+
     // Watch playlist changes
     watch(() => musicStore.playList, (newQueue) => {
         if (isConnected.value && roomId.value && !isRemoteUpdate) {
@@ -342,12 +366,14 @@ export const useRoomStore = defineStore('room', () => {
         isConnected,
         userCount,
         lastEmote,
+        isSomeoneTyping,
         createRoom,
         joinRoom,
         emitPlay,
         emitPause,
         emitSeek,
         emitEmote,
+        emitTyping,
         isRemoteUpdate,
         isLoading,
         error,

@@ -141,6 +141,16 @@ export const useMusicStore = defineStore('music', () => {
         }
     }
 
+    const insertToNext = (song: Song) => {
+        // Remove if already exists to avoid duplicates? Or allow duplicates?
+        // Let's remove duplicates for better UX
+        const idx = playList.value.findIndex(item => item.id === song.id)
+        if (idx > -1) {
+            playList.value.splice(idx, 1)
+        }
+        playList.value.unshift(song)
+    }
+
     const removeFromQueue = (index: number) => {
         if (index >= 0 && index < playList.value.length) {
             playList.value.splice(index, 1)
@@ -191,6 +201,7 @@ export const useMusicStore = defineStore('music', () => {
         togglePlay,
         addToQueue,
         playNext,
+        insertToNext,
         removeFromQueue,
         clearQueue,
         seek,

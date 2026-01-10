@@ -66,7 +66,10 @@ watch(() => [musicStore.audioRef, musicStore.isPlaying], ([ref, playing]) => {
           <div class="player-info" @click="showFullPlayer = true">
             <div class="player-title">{{ musicStore.currentSong.name }}</div>
             <div class="player-sub">
-                <span class="player-artist">{{ musicStore.currentSong.artist }}</span>
+                <span class="player-artist" v-if="!roomStore.isSomeoneTyping">{{ musicStore.currentSong.artist }}</span>
+                <span class="player-typing" v-else>
+                     <van-icon name="edit" /> Someone is picking a song...
+                </span>
                 <span class="player-users" v-if="roomStore.userCount > 1">
                     <van-icon name="friends" /> {{ roomStore.userCount }}
                 </span>
@@ -215,6 +218,22 @@ watch(() => [musicStore.audioRef, musicStore.isPlaying], ([ref, playing]) => {
     align-items: center;
     gap: 2px;
     flex-shrink: 0;
+}
+
+.player-typing {
+    font-size: 11px;
+    color: #6200ea;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    animation: pulse 1.5s infinite;
+    white-space: nowrap;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
 }
 
 .player-controls {

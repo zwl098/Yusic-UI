@@ -93,7 +93,23 @@ export const useMusicStore = defineStore('music', () => {
         // Fetch lyrics if missing (Background)
         fetchLyrics(song)
 
-        // Attempt to auto-play if audio element is ready
+        // Refresh URL: Ensure we have a fresh link (bypassing search cache)
+        try {
+            const res = await tunefreeApi.getMusicUrl(song.id, song.source)
+            if (res.code === 200) {
+                let newUrl = ''
+                if (typeof res.data === 'string') newUrl = res.data
+                else if (res.data && res.data.url) newUrl = res.data.url
+
+                if (newUrl && currentSong.value?.id === song.id) {
+                    currentSong.value.url = newUrl.replace(/http:/g, 'https:')
+                    console.log('[MusicStore] Refreshed URL:', currentSong.value.url)
+                }
+            }
+        } catch (e) {
+            console.error('[MusicStore] Failed to refresh URL:', e)
+        }
+
         // Attempt to auto-play if audio element is ready
         // Use nextTick to allow Vue to update ref/src, but keep within microtask for iOS
         import('vue').then(({ nextTick }) => {

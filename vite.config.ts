@@ -44,10 +44,11 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
-            urlPattern: /^(?:https?:\/\/)?.*\.(?:mp3|m4a|aac|wav|ogg)(?:[?#].*)?$/i,
+            // CRITICAL: Song URLs expire, so we must NEVER cache the request that gets the URL
+            urlPattern: /\?type=url/i,
             handler: 'NetworkOnly',
             options: {
-              cacheName: 'audio-cache-bypass',
+              cacheName: 'api-url-bypass'
             }
           },
           {
@@ -62,6 +63,7 @@ export default defineConfig({
             }
           },
           {
+            // Other API requests (search, lrc, etc) can be NetworkFirst
             urlPattern: /^https:\/\/music-dl\.sayqz\.com\/api/,
             handler: 'NetworkFirst',
             options: {

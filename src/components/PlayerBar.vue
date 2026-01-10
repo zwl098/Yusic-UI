@@ -104,6 +104,16 @@ watch(() => [musicStore.audioRef, musicStore.isPlaying], ([ref, playing]) => {
       @ended="onNext"
       @timeupdate="(e) => musicStore.currentTime = (e.target as HTMLAudioElement).currentTime"
       @loadedmetadata="(e) => musicStore.duration = (e.target as HTMLAudioElement).duration"
+      @error="(e) => {
+          const target = e.target as HTMLAudioElement;
+          console.error('[Audio] Error Event:', target.error);
+          import('vant').then(({ showFailToast }) => {
+                showFailToast({
+                    message: `Audio Error: ${target.error?.code} - ${target.error?.message}`,
+                    duration: 5000
+                })
+           })
+      }"
       :ref="(el) => { if(el) musicStore.audioRef = el as HTMLAudioElement }"
     ></audio>
 

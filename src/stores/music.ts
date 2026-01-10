@@ -104,6 +104,12 @@ export const useMusicStore = defineStore('music', () => {
                     if (playPromise !== undefined) {
                         playPromise.catch(error => {
                             console.warn('[MusicStore] Autoplay prevented or interrupted:', error)
+                            import('vant').then(({ showFailToast }) => {
+                                showFailToast({
+                                    message: `Play Error: ${error.name}`,
+                                    duration: 3000
+                                })
+                            })
                             isPlaying.value = false // Sync state
                         })
                     }

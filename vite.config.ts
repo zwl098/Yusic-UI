@@ -20,7 +20,7 @@ export default defineConfig({
       resolvers: [VantResolver()],
     }),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
         name: 'Yusic UI',
@@ -41,7 +41,15 @@ export default defineConfig({
         ]
       },
       workbox: {
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
+          {
+            urlPattern: /^(?:https?:\/\/)?.*\.(?:mp3|m4a|aac|wav|ogg)(?:[?#].*)?$/i,
+            handler: 'NetworkOnly',
+            options: {
+              cacheName: 'audio-cache-bypass',
+            }
+          },
           {
             urlPattern: /^(?:https?:\/\/)?.*\.(?:png|jpg|jpeg|svg|gif|webp)/i,
             handler: 'CacheFirst',

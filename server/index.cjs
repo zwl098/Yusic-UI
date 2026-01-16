@@ -1,19 +1,40 @@
+const express = require('express');
+const { createProxyMiddleware } = require('http-proxy-middleware');
+const http = require('http');
 const { Server } = require("socket.io");
+const fs = require('fs');
+const path = require('path');
 
-const io = new Server({
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
     cors: {
         origin: "*",
     },
 });
 
-const rooms = new Map();
-const roomTimeouts = new Map();
-
-const fs = require('fs');
-const path = require('path');
-
 const PORT = process.env.PORT || 3000;
 const PLAYLIST_FILE = path.join(__dirname, 'playlists.json');
+
+// API Proxy Configuration
+app.use('/api', createProxyMiddleware({
+    target: 'https://music-dl.sayqz.com/api',
+    changeOrigin: true,
+    pathRewrite: {
+        '^/api': '', // Remove /api prefix when forwarding
+    },
+    on: {
+        proxyRes: (proxyRes, req, res) => {
+            if (proxyRes.headers['location']) {
+                // Force HTTPS in redirect Location header
+                proxyRes.headers['location'] = proxyRes.headers['location'].replace(/^http:\/\//, 'https://');
+            }
+        }
+    }
+}));
+
+const rooms = new Map();
+const roomTimeouts = new Map();
 
 // Helper to load playlists
 function loadPlaylists() {
@@ -242,5 +263,8 @@ io.on("connection", (socket) => {
     });
 });
 
-io.listen(PORT);
-console.log(`Socket.io server running on port ${PORT}`);
+server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log(`Socket.io attached`);
+    console.log(`API Proxy available at /api`);
+});

@@ -29,7 +29,14 @@ export default defineConfig({
       '/api': {
         target: 'https://music-dl.sayqz.com/api',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '')
+        rewrite: (path) => path.replace(/^\/api/, ''),
+        configure: (proxy, _options) => {
+          proxy.on('proxyRes', (proxyRes, _req, _res) => {
+            if (proxyRes.headers['location']) {
+              proxyRes.headers['location'] = proxyRes.headers['location'].replace(/^http:\/\//, 'https://')
+            }
+          })
+        }
       }
     }
   }

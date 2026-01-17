@@ -27,9 +27,16 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'https://music-dl.sayqz.com/api',
+        target: 'http://localhost:3000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
+        rewrite: (path) => {
+          // If it is /api/rooms..., strip /api
+          if (path.startsWith('/api/rooms')) {
+            return path.replace(/^\/api/, '')
+          }
+          // Otherwise keep /api (which backend proxies to music-dl)
+          return path
+        },
         configure: (proxy, _options) => {
           proxy.on('proxyRes', (proxyRes, _req, _res) => {
             if (proxyRes.headers['location']) {

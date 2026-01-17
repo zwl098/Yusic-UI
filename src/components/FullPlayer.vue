@@ -47,7 +47,7 @@ const progress = computed({
     set: (val) => {
         const time = (val / 100) * musicStore.duration
         musicStore.seek(time)
-        roomStore.emitSeek(time)
+        // roomStore.emitSeek(time)
     }
 })
 
@@ -69,7 +69,7 @@ watch(() => musicStore.currentTime, (time) => {
 
 const seekToLine = (line: LrcLine) => {
     musicStore.seek(line.time)
-    roomStore.emitSeek(line.time)
+    // roomStore.emitSeek(line.time)
     if (!musicStore.isPlaying) {
         musicStore.togglePlay()
     }
@@ -96,7 +96,7 @@ const onPrev = () => {
     // Implement prev logic if queue supports history, or just restart
     // For now, simplicity: restart song or do nothing
     musicStore.seek(0)
-    roomStore.emitSeek(0)
+    // roomStore.emitSeek(0)
 }
 
 const onNext = () => {

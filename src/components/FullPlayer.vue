@@ -186,6 +186,11 @@ let lastVibrateTime = 0
 // 1. 3D Parallax
 const cardTransform = ref('')
 const onMouseMove = (e: MouseEvent) => {
+    // Disable mouse parallax on touch devices (Mobile) to prevent conflict with scrolling/clicking
+    // Mobile uses Gyroscope (onDeviceOrientation) instead
+    const isTouchDevice = window.matchMedia('(pointer: coarse)').matches
+    if (isTouchDevice) return
+
     if (!props.show || !settingsStore.enableParallax) {
         if (cardTransform.value !== '') cardTransform.value = ''
         return
@@ -210,6 +215,23 @@ const onDeviceOrientation = (e: DeviceOrientationEvent) => {
     const y = Math.min(Math.max(beta - 45, -45), 45) / 45 // Offset beta by 45deg (holding angle)
 
     cardTransform.value = `perspective(1000px) rotateX(${-y * 15}deg) rotateY(${x * 15}deg)`
+}
+
+// iOS 13+ Permission Request
+const requestMotionAccess = async () => {
+    if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+        try {
+            const permissionState = await (DeviceOrientationEvent as any).requestPermission()
+            if (permissionState === 'granted') {
+                window.addEventListener('deviceorientation', onDeviceOrientation)
+            }
+        } catch (e) {
+            console.error('Motion access denied', e)
+        }
+    } else {
+        // Non-iOS 13+ devices
+        window.addEventListener('deviceorientation', onDeviceOrientation)
+    }
 }
 
 // 2. Particles & Spectrum
@@ -566,6 +588,7 @@ watch(() => musicStore.currentSong?.cover, (newUrl) => {
         @touchstart="onTouchStart" 
         @touchmove="onTouchMove" 
         @touchend="onTouchEnd"
+        @click.once="requestMotionAccess"
         :style="{ transform: `translateY(${touchMoveY}px)`, transition: isDragging ? 'none' : 'transform 0.3s ease-out' }"
     >
     >

@@ -118,12 +118,42 @@ export const useMusicStore = defineStore('music', () => {
     // Keep track of the current object URL to revoke it
     let currentObjectUrl: string | null = null
 
+    const updateMediaSession = () => {
+        if ('mediaSession' in navigator && currentSong.value) {
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: currentSong.value.name,
+                artist: currentSong.value.artist,
+                album: currentSong.value.album || 'Yusic',
+                artwork: [
+                    { src: currentSong.value.cover || 'https://via.placeholder.com/512', sizes: '512x512', type: 'image/jpeg' }
+                ]
+            })
+
+            navigator.mediaSession.setActionHandler('play', () => {
+                togglePlay()
+            })
+            navigator.mediaSession.setActionHandler('pause', () => {
+                togglePlay()
+            })
+            navigator.mediaSession.setActionHandler('previoustrack', () => {
+                // For now, seek to 0 as we don't have history stack yet
+                seek(0)
+            })
+            navigator.mediaSession.setActionHandler('nexttrack', () => {
+                playNext()
+            })
+        }
+    }
+
     const playSong = async (song: Song) => {
         currentSong.value = song
         // Don't set isPlaying true immediately to avoid buffering glitches, wait for load
 
         // Fetch lyrics if missing (Background)
         fetchLyrics(song)
+
+        // Update Media Session
+        updateMediaSession()
 
         // Cleanup previous Blob URL
         if (currentObjectUrl) {

@@ -289,7 +289,6 @@ const togglePip = async () => {
                 <div class="header-info">
                     <div class="title">{{ musicStore.currentSong?.name }}</div>
                     <div class="artist">{{ musicStore.currentSong?.artist }}</div>
-                    <van-icon  name="desktop-o"  @click="console.log('DEBUG:', { lyrics: lyrics, song: musicStore.currentSong })" />
                 </div>
                 <div class="actions">
                     <van-icon 
@@ -394,7 +393,6 @@ const togglePip = async () => {
         <div class="floating-emotes" ref="emoteContainer"></div>
     </div>
 </template>
-
 <style scoped>
 .full-player {
     position: relative;
@@ -406,6 +404,7 @@ const togglePip = async () => {
     flex-direction: column;
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
+    background: #000;
 }
 
 .bg-blur {
@@ -416,11 +415,16 @@ const togglePip = async () => {
     height: 100%;
     background-size: cover;
     background-position: center;
-    filter: blur(40px);
-    transform: scale(1.2);
+    filter: blur(60px) brightness(0.5); /* Darker for better contrast */
+    transform: scale(1.5);
     z-index: 0;
+    animation: breathe 30s ease-in-out infinite alternate;
     will-change: transform;
-    transition: transform 0.1s linear; /* Smoother visualizer updates */
+}
+
+@keyframes breathe {
+    0% { transform: scale(1.5) rotate(0deg); }
+    100% { transform: scale(1.7) rotate(2deg); }
 }
 
 .bg-mask {
@@ -429,7 +433,8 @@ const togglePip = async () => {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0,0,0,0.5);
+    /* Cinematic vignette */
+    background: radial-gradient(circle at center, transparent 0%, rgba(0,0,0,0.4) 60%, rgba(0,0,0,0.8) 100%);
     z-index: 1;
 }
 
@@ -442,7 +447,7 @@ const togglePip = async () => {
 }
 
 .header {
-    padding: 24px;
+    padding: 16px 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -450,21 +455,32 @@ const togglePip = async () => {
 
 .header-info {
     text-align: center;
+    max-width: 70%;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
 
 .title {
-    font-size: 18px;
-    font-weight: 600;
+    font-size: 20px;
+    font-weight: 800;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: -0.5px;
 }
 
 .artist {
     font-size: 14px;
-    opacity: 0.7;
+    opacity: 0.8;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
 }
 
-.spacer {
-    width: 24px;
-}
+.spacer { width: 24px; }
 
 .main-area {
     flex: 1;
@@ -473,30 +489,56 @@ const togglePip = async () => {
     justify-content: center;
     overflow: hidden;
     position: relative;
+    perspective: 1000px; /* For 3D effects */
 }
 
-/* Vinyl Styles */
+/* Ultra Premium Vinyl */
 .vinyl-wrapper {
-    width: 300px;
-    height: 300px;
-    border-radius: 50%;
-    background: #111;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 0 20px rgba(0,0,0,0.5);
-}
-
-.vinyl-disc {
     width: 280px;
     height: 280px;
     border-radius: 50%;
+    background: #0b0b0b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 
+        0 20px 40px rgba(0,0,0,0.6), /* Deep shadow */
+        0 0 0 10px rgba(255,255,255,0.02), /* Outer rim */
+        0 0 0 1px rgba(255,255,255,0.1); /* Sharp edge */
+    position: relative;
+    transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Reflection attempt */
+.vinyl-wrapper::before {
+    content: '';
+    position: absolute;
+    bottom: -60px; /* Offset for reflection */
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: inherit;
+    /* Use the same cover image technically? No, hard to do specifically without duplicating img tag. */
+    /* Let's just do a shadow reflection */
+    background: radial-gradient(ellipse at center, rgba(255,255,255,0.1) 0%, transparent 60%);
+    opacity: 0.3;
+    transform: scaleY(0.4);
+    filter: blur(10px);
+    z-index: -1;
+}
+
+.vinyl-disc {
+    width: 260px;
+    height: 260px;
+    border-radius: 50%;
     overflow: hidden;
-    animation-play-state: paused;
+    position: relative;
+    box-shadow: inset 0 0 20px rgba(0,0,0,1);
 }
 
 .vinyl-disc.rotating {
-    animation: rotate 20s linear infinite;
+    animation: rotate 30s linear infinite;
 }
 
 .cover-img {
@@ -505,147 +547,204 @@ const togglePip = async () => {
     object-fit: cover;
 }
 
+/* Glossy Overlays for Vinyl */
+.vinyl-disc::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: 
+        linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 40%, transparent 60%, rgba(255,255,255,0.1) 100%),
+        repeating-radial-gradient(rgba(255,255,255,0.05) 0, rgba(255,255,255,0.05) 1px, transparent 2px, transparent 4px);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
 @keyframes rotate {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
 }
 
-/* Lyrics Styles */
+/* Cinematic Lyrics */
 .lyrics-wrapper {
     width: 100%;
     height: 100%;
     overflow-y: auto;
-    padding: 20px 0;
-    text-align: center;
-    mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+    padding: 50vh 0;
+    text-align: left;
+    /* Sophisticated mask for smooth fade in/out */
+    mask-image: linear-gradient(
+        to bottom, 
+        transparent 0%, 
+        black 25%, 
+        black 75%, 
+        transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+        to bottom, 
+        transparent 0%, 
+        black 25%, 
+        black 75%, 
+        transparent 100%
+    );
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
+    box-sizing: border-box;
+    padding-left: 32px;
+    padding-right: 32px;
 }
 
 .lrc-line {
-    padding: 12px 16px;
-    opacity: 0.4;
-    transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-    font-size: 18px;
-    min-height: 28px;
+    padding: 16px 0;
+    opacity: 0.2; /* Darker inactive */
+    transition: all 0.6s cubic-bezier(0.33, 1, 0.68, 1);
+    font-size: 22px; 
+    line-height: 1.5;
     cursor: pointer;
-    transform-origin: center;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    text-align: left; /* Align text to left for better reading with icon on right */
-}
-
-.lrc-text {
-    flex: 1;
-    text-align: center; /* Keep center text if preferred, but flex complicates it. Let's try keeping it simple */
-}
-
-.lrc-play-icon {
-    font-size: 24px;
-    padding: 10px;
-    opacity: 0.2;
-    transition: all 0.2s;
-    cursor: pointer;
-}
-
-.lrc-play-icon:hover {
-    opacity: 1;
-    transform: scale(1.1);
-}
-
-/* On mobile touch devices, maybe always show a bit clearer? Or keep 0.2 is fine */
-.lrc-line.active .lrc-play-icon {
-    opacity: 0.8;
+    font-weight: 700;
+    filter: blur(1.5px); /* Stronger blur for stronger focus effect */
+    transform-origin: left center;
+    color: rgba(255,255,255,0.8);
+    letter-spacing: 0.5px;
 }
 
 .lrc-line:hover {
-    opacity: 0.7;
+    opacity: 0.5;
+    filter: blur(0.5px);
+    transform: translateX(10px);
 }
 
 .lrc-line.active {
     opacity: 1;
-    font-size: 24px;
+    font-size: 32px; /* Much larger active line */
     color: #fff;
-    font-weight: 700;
-    transform: scale(1.05);
-    text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+    filter: blur(0);
+    transform: scale(1.0);
+    text-shadow: 0 0 30px rgba(255, 255, 255, 0.6); /* Strong neon glow */
+    margin: 20px 0; /* Extra spacing to isolate the active line */
 }
 
 .lrc-line.interlude {
-    font-family: 'Georgia', serif;
-    font-size: 16px;
+    font-family: 'Times New Roman', serif;
     font-style: italic;
-    opacity: 0.8;
     color: #ffd700;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
 }
 
 .no-lyrics {
-    margin-top: 50%;
+    text-align: center;
+    padding-top: 20%;
+    font-size: 18px;
     opacity: 0.5;
+    letter-spacing: 2px;
 }
 
-/* Controls Styles */
+/* Glass Controls Card */
 .controls-area {
-    padding: 30px 24px 50px;
+    margin: 0 16px 30px 16px; 
+    padding: 24px;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .progress-bar {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 30px;
+    gap: 12px;
+    margin-bottom: 24px;
 }
 
 .time-text {
-    font-size: 12px;
-    font-variant-numeric: tabular-nums;
-    width: 40px;
+    font-size: 11px;
+    font-family: 'Menlo', monospace;
+    width: 45px;
     text-align: center;
+    opacity: 0.6;
+}
+
+/* Neon Slider */
+:deep(.van-slider__bar) {
+    background: linear-gradient(90deg, #fff, #ddd);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+:deep(.van-slider__button) {
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.8) !important;
+    background: #fff;
 }
 
 .buttons {
     display: flex;
     align-items: center;
-    justify-content: space-around;
+    justify-content: space-evenly;
+}
+
+.buttons .van-icon {
+    opacity: 0.8;
+    transition: all 0.3s;
+    filter: drop-shadow(0 0 5px rgba(255,255,255,0.2));
+}
+
+.buttons .van-icon:hover {
+    opacity: 1;
+    filter: drop-shadow(0 0 10px rgba(255,255,255,0.6));
 }
 
 .play-btn {
-    width: 64px;
-    height: 64px;
+    width: 76px;
+    height: 76px;
     background: white;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: 0 0 30px rgba(255, 255, 255, 0.2);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
-/* Emotes */
+.play-btn:hover {
+    box-shadow: 0 0 40px rgba(255, 255, 255, 0.4);
+    transform: scale(1.05);
+}
+
+.play-btn:active {
+    transform: scale(0.95);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+}
+
+/* Glass Emote Bar */
 .emote-bar {
     display: flex;
     justify-content: center;
-    gap: 16px;
+    gap: 24px;
     margin-bottom: 20px;
+    padding: 12px 24px;
+    background: rgba(255,255,255,0.02);
+    border-radius: 40px;
+    border: 1px solid rgba(255,255,255,0.05);
+    backdrop-filter: blur(10px);
+    width: fit-content;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .emote-btn {
-    font-size: 24px;
+    font-size: 26px;
     cursor: pointer;
-    transition: transform 0.1s;
-    user-select: none;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    filter: grayscale(0.5);
 }
 
-.emote-btn:active {
-    transform: scale(1.2);
+.emote-btn:hover {
+    transform: scale(1.3) rotate(5deg);
+    filter: grayscale(0) drop-shadow(0 0 10px rgba(255,255,255,0.4));
 }
 
+/* Floating Emotes */
 .floating-emotes {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    top: 0; left: 0; width: 100%; height: 100%;
     pointer-events: none;
     z-index: 10;
     overflow: hidden;
@@ -653,29 +752,20 @@ const togglePip = async () => {
 
 :deep(.floating-emoji) {
     position: absolute;
-    bottom: 160px; /* Start above controls */
-    font-size: 32px;
-    animation: floatUp 3s ease-out forwards;
+    bottom: 220px;
+    font-size: 48px;
+    animation: floatCinematic 4s ease-out forwards;
     opacity: 0;
+    filter: drop-shadow(0 0 15px rgba(255,255,255,0.4));
 }
 
-@keyframes floatUp {
-    0% {
-        transform: translateY(0) scale(0.5);
-        opacity: 0;
-    }
-    10% {
-        opacity: 1;
-        transform: translateY(-20px) scale(1.2);
-    }
-    100% {
-        transform: translateY(-400px) scale(1);
-        opacity: 0;
-    }
+@keyframes floatCinematic {
+    0% { transform: translateY(0) scale(0.2) rotate(0deg); opacity: 0; }
+    20% { opacity: 1; transform: translateY(-50px) scale(1.2) rotate(15deg); }
+    100% { transform: translateY(-600px) scale(0.8) rotate(-15deg); opacity: 0; }
 }
 
-
-/* PiP Styles (Global or deep because they are teleported) */
+/* PiP Styles */
 :deep(.pip-container) {
     position: relative;
     width: 100%;
@@ -684,9 +774,9 @@ const togglePip = async () => {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #121212;
-    font-family: 'Inter', -apple-system, sans-serif;
-    cursor: pointer; /* Click to play/pause */
+    background: #000;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    cursor: pointer; 
     user-select: none;
 }
 
@@ -696,9 +786,9 @@ const togglePip = async () => {
     height: 100%;
     background-size: cover;
     background-position: center;
-    filter: blur(15px) brightness(0.4); /* Darker for better text contrast */
+    filter: blur(20px) brightness(0.4); 
     z-index: 0;
-    transform: scale(1.1); /* Prevent blur edges */
+    transform: scale(1.2); 
 }
 
 :deep(.pip-content) {
@@ -707,7 +797,7 @@ const togglePip = async () => {
     text-align: center;
     color: white;
     width: 100%;
-    padding: 0 10px;
+    padding: 0 16px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -716,28 +806,25 @@ const togglePip = async () => {
 }
 
 :deep(.pip-line) {
-    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-    line-height: 1.2;
-    padding: 2px 0;
+    transition: all 0.4s ease;
+    line-height: 1.3;
+    padding: 4px 0;
 }
 
 :deep(.pip-line.active) {
-    font-size: 28px; /* Larger font */
-    font-weight: 900;
-    background: linear-gradient(to bottom, #fff 0%, #ddd 100%);
+    font-size: 24px; 
+    font-weight: 800;
+    background: linear-gradient(to bottom, #fff 0%, #ccc 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));
-    margin-bottom: 4px;
-    max-width: 95%;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+    margin-bottom: 8px;
+    max-width: 100%;
 }
 
 :deep(.pip-line.next) {
-    font-size: 14px;
-    opacity: 0.6;
-    letter-spacing: 0.5px;
-    margin-bottom: 12px;
+    font-size: 16px;
+    opacity: 0.5;
+    margin-bottom: 0;
 }
-
-
 </style>

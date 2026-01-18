@@ -14,6 +14,26 @@ const musicStore = useMusicStore()
 const playlistStore = usePlaylistStore()
 const appStore = useAppStore()
 
+// Version Easter Egg
+const appVersion = __APP_VERSION__
+const versionClickCount = ref(0)
+let versionClickTimer: any = null
+
+const handleTitleClick = () => {
+    versionClickCount.value++
+    
+    if (versionClickTimer) clearTimeout(versionClickTimer)
+    versionClickTimer = setTimeout(() => {
+        versionClickCount.value = 0
+    }, 500)
+    
+    if (versionClickCount.value >= 5) {
+        showToast(`v${appVersion}`)
+        versionClickCount.value = 0
+        clearTimeout(versionClickTimer)
+    }
+}
+
 const showAddToPlaylist = ref(false)
 const selectedSong = ref<Song | null>(null)
 const addedSongs = ref(new Set<string>())
@@ -164,7 +184,7 @@ const insertToQueue = (song: Song, event?: MouseEvent) => {
 <template>
   <div class="home-container">
     <div class="header-bg">
-      <h1 class="app-title">Yusic</h1>
+      <h1 class="app-title" @click="handleTitleClick">Yusic</h1>
       <p class="app-subtitle">Discover your rhythm</p>
       <div class="header-actions">
            <van-button 
@@ -352,6 +372,8 @@ const insertToQueue = (song: Song, event?: MouseEvent) => {
   font-weight: 800;
   margin: 0;
   letter-spacing: -1px;
+  user-select: none;
+  cursor: default;
 }
 
 .header-bg {

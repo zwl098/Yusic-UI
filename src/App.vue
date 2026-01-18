@@ -25,20 +25,5 @@ onMounted(() => {
     </Transition>
   </RouterView>
   
-  <!-- Version Watermark -->
-  <div class="version-watermark">v{{ appVersion }}</div>
-  
   <PlayerBar />
 </template>
-
-<style scoped>
-.version-watermark {
-    position: fixed;
-    bottom: 80px; /* Above player bar */
-    right: 10px;
-    font-size: 10px;
-    color: rgba(255, 255, 255, 0.2);
-    pointer-events: none;
-    z-index: 9999;
-}
-</style>

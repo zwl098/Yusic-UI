@@ -270,8 +270,13 @@ const initParticles = (dpr: number) => {
 
 const startLoop = () => {
     if (!props.show) return 
-    const analyser = musicStore.analyser
 
+    // Optimization: If lyrics are fully shown, skip visualizer painting to save GPU for scrolling
+    // We keep the loop running for haptics/bass calculation, but skip drawing
+    const shouldDraw = !showLyrics.value
+    
+    const analyser = musicStore.analyser
+    
     // Prepare data
     if (analyser && !dataArray) {
         dataArray = new Uint8Array(analyser.frequencyBinCount)
@@ -853,6 +858,7 @@ watch(() => musicStore.currentSong?.cover, (newUrl) => {
     display: flex;
     align-items: center;
     justify-content: center;
+    will-change: transform, opacity; /* Hint for transition */
 }
 
 .lyrics-wrapper {
@@ -1019,24 +1025,25 @@ watch(() => musicStore.currentSong?.cover, (newUrl) => {
 
 /* Cinematic Lyrics */
 .lyrics-wrapper {
+    grid-area: content;
     width: 100%;
     height: 100%;
     overflow-y: auto;
-    padding: 50vh 0;
+    /* Optimized padding: Start higher (30vh) to show more content */
+    padding: 30vh 0 60vh 0;
     text-align: left;
-    /* Sophisticated mask for smooth fade in/out */
     mask-image: linear-gradient(
-        to bottom, 
-        transparent 0%, 
-        black 25%, 
-        black 75%, 
+        to bottom,
+        transparent 0%,
+        black 15%,
+        black 85%,
         transparent 100%
     );
     -webkit-mask-image: linear-gradient(
-        to bottom, 
-        transparent 0%, 
-        black 25%, 
-        black 75%, 
+        to bottom,
+        transparent 0%,
+        black 15%,
+        black 85%,
         transparent 100%
     );
     -webkit-overflow-scrolling: touch;
@@ -1044,25 +1051,27 @@ watch(() => musicStore.currentSong?.cover, (newUrl) => {
     box-sizing: border-box;
     padding-left: 32px;
     padding-right: 32px;
+    will-change: transform, opacity; /* Hint for transition */
 }
 
 .lrc-line {
     padding: 16px 0;
-    opacity: 0.2; /* Darker inactive */
+    opacity: 0.3; /* Adjusted opacity instead of blur */
     transition: all 0.6s cubic-bezier(0.33, 1, 0.68, 1);
-    font-size: 22px; 
+    font-size: 22px;
     line-height: 1.5;
     cursor: pointer;
     font-weight: 700;
-    filter: blur(1.5px); /* Stronger blur for stronger focus effect */
+    /* Removed filter: blur(1.5px) for performance */
     transform-origin: left center;
     color: rgba(255,255,255,0.8);
     letter-spacing: 0.5px;
+    content-visibility: auto; /* Huge performance boost for long lists */
+    contain-intrinsic-size: 50px; /* Approximate height to prevent scrollbar jumping */
 }
 
 .lrc-line:hover {
-    opacity: 0.5;
-    filter: blur(0.5px);
+    opacity: 0.6;
     transform: translateX(10px);
 }
 
@@ -1070,10 +1079,11 @@ watch(() => musicStore.currentSong?.cover, (newUrl) => {
     opacity: 1;
     font-size: 32px; /* Much larger active line */
     color: #fff;
-    filter: blur(0);
     transform: scale(1.0);
-    text-shadow: 0 0 30px rgba(255, 255, 255, 0.6); /* Strong neon glow */
+    /* Reduced shadow radius for performance */
+    text-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
     margin: 20px 0; /* Extra spacing to isolate the active line */
+    will-change: transform, opacity; /* Optimization */
 }
 
 

@@ -8,6 +8,9 @@ export const useSettingsStore = defineStore('settings', () => {
     const enableHaptics = ref(true)
     const highQualityBlur = ref(true)
 
+    // Session-only flag (do not persist, as iOS resets permission on reload)
+    const motionPermissionGranted = ref(false)
+
     // Load from local storage
     const load = () => {
         const s = localStorage.getItem('yusic_settings')
@@ -44,6 +47,7 @@ export const useSettingsStore = defineStore('settings', () => {
         showSpectrum,
         enableParallax,
         enableHaptics,
-        highQualityBlur
+        highQualityBlur,
+        motionPermissionGranted
     }
 })

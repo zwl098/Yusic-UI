@@ -309,6 +309,7 @@ export const useMusicStore = defineStore('music', () => {
             const ana = ctx.createAnalyser()
             ana.fftSize = 512
 
+            console.log('[MusicStore] Hijacking audio for visualization...')
             const source = ctx.createMediaElementSource(audioRef.value)
             source.connect(ana)
             ana.connect(ctx.destination)
@@ -316,6 +317,22 @@ export const useMusicStore = defineStore('music', () => {
             audioContext.value = ctx
             analyser.value = ana
         } catch (e) {
+            console.error('[MusicStore] AudioContext init failed:', e)
+        }
+    }
+
+    const shutdownAudioContext = async () => {
+        if (audioContext.value) {
+            try {
+                console.log('[MusicStore] Releasing audio context for background play...')
+                // Closing content releases the media element from the graph
+                await audioContext.value.close()
+            } catch (e) {
+                console.warn('[MusicStore] Context close error:', e)
+            } finally {
+                audioContext.value = null
+                analyser.value = null
+            }
         }
     }
 
@@ -338,6 +355,7 @@ export const useMusicStore = defineStore('music', () => {
         audioRef,
         audioContext,
         analyser,
-        initAudioContext
+        initAudioContext,
+        shutdownAudioContext
     }
 })

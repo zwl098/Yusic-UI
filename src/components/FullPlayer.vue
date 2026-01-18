@@ -219,10 +219,17 @@ const onDeviceOrientation = (e: DeviceOrientationEvent) => {
 
 // iOS 13+ Permission Request
 const requestMotionAccess = async () => {
+    // If already granted in this session, don't ask again
+    if (settingsStore.motionPermissionGranted) {
+         window.addEventListener('deviceorientation', onDeviceOrientation)
+         return
+    }
+
     if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
         try {
             const permissionState = await (DeviceOrientationEvent as any).requestPermission()
             if (permissionState === 'granted') {
+                settingsStore.motionPermissionGranted = true
                 window.addEventListener('deviceorientation', onDeviceOrientation)
             }
         } catch (e) {
@@ -230,6 +237,7 @@ const requestMotionAccess = async () => {
         }
     } else {
         // Non-iOS 13+ devices
+        settingsStore.motionPermissionGranted = true
         window.addEventListener('deviceorientation', onDeviceOrientation)
     }
 }
@@ -436,7 +444,11 @@ watch(() => props.show, (val) => {
             startLoop()
             window.addEventListener('resize', updateCanvasSize)
             window.addEventListener('mousemove', onMouseMove)
-            window.addEventListener('deviceorientation', onDeviceOrientation)
+            
+            // Auto-enable if previously granted
+            if (settingsStore.motionPermissionGranted) {
+                window.addEventListener('deviceorientation', onDeviceOrientation)
+            }
         })
     } else {
         if (animationId) cancelAnimationFrame(animationId)
@@ -458,7 +470,34 @@ watch(() => musicStore.analyser, (newVal) => {
     }
 })
 
+// === Background Playback Fix ===
+// When app goes background, we MUST destroy the AudioContext
+// Otherwise mobile browsers suspend it, silencing the audio
+const handleVisibilityChange = () => {
+    if (document.hidden) {
+        // App is backgrounded -> Release audio to native
+        musicStore.shutdownAudioContext()
+    } else {
+        // App is foregrounded -> Re-hijack for visuals (if player open)
+        if (props.show) {
+            musicStore.initAudioContext()
+        }
+    }
+}
+
+onMounted(() => {
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    if (props.show && musicStore.analyser) {
+        startLoop()
+    }
+    // Try init if not ready
+    if (props.show && !musicStore.audioContext) {
+        musicStore.initAudioContext()
+    }
+})
+
 onUnmounted(() => {
+    document.removeEventListener('visibilitychange', handleVisibilityChange)
     if (animationId) cancelAnimationFrame(animationId)
     // Close PiP on unmount
     if (pipWindow.value) {
@@ -588,7 +627,7 @@ watch(() => musicStore.currentSong?.cover, (newUrl) => {
         @touchstart="onTouchStart" 
         @touchmove="onTouchMove" 
         @touchend="onTouchEnd"
-        @click.once="requestMotionAccess"
+        @click="requestMotionAccess"
         :style="{ transform: `translateY(${touchMoveY}px)`, transition: isDragging ? 'none' : 'transform 0.3s ease-out' }"
     >
     >

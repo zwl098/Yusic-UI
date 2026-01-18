@@ -2,11 +2,13 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useMusicStore } from '@/stores/music'
 import { useRoomStore } from '@/stores/room'
+import { useFavoritesStore } from '@/stores/favorites' // [NEW]
 import { parseLrc, type LrcLine } from '@/utils/lrc'
 import { getDominantColor } from '@/utils/color'
 
 const musicStore = useMusicStore()
 const roomStore = useRoomStore()
+const favoritesStore = useFavoritesStore() // [NEW]
 const props = defineProps<{
   show: boolean
 }>()
@@ -166,6 +168,7 @@ const bgScale = ref(1.2)
 const bassScale = ref(1.0) 
 let dataArray: Uint8Array | null = null
 let animationId: number | null = null
+let lastVibrateTime = 0
 
 // 1. 3D Parallax
 const cardTransform = ref('')
@@ -282,6 +285,15 @@ const startLoop = () => {
     const targetBass = 1 + bassLevel * 0.15
     bassScale.value += (targetBass - bassScale.value) * 0.3
     
+    // 4D Haptic Bass (Vibration)
+    const now = Date.now()
+    if (average > 210 && now - lastVibrateTime > 300) {
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            try { navigator.vibrate(15) } catch(e) {}
+        }
+        lastVibrateTime = now
+    }
+
     const targetBg = 1.2 + bassLevel * 0.1
     bgScale.value += (targetBg - bgScale.value) * 0.1
 
@@ -451,8 +463,15 @@ const onTouchStart = (e: TouchEvent) => {
 
 const onTouchMove = (e: TouchEvent) => {
     if (!isDragging.value || e.touches.length === 0) return
+
+    // If lyrics are shown and not at top, allow scrolling instead of closing
+    if (showLyrics.value && lyricsContainer.value && lyricsContainer.value.scrollTop > 0) {
+        return
+    }
+
     const deltaY = e.touches[0].clientY - touchStartY.value
     if (deltaY > 0) { // Only allow dragging down
+        if (e.cancelable) e.preventDefault() // Prevent native pull-to-refresh
         touchMoveY.value = deltaY
     }
 }
@@ -472,6 +491,19 @@ const onTouchEnd = () => {
 }
 
 
+const displayCover = ref('')
+
+watch(() => musicStore.currentSong?.cover, (newUrl) => {
+    if (!newUrl) return
+    // Preload image to prevent black flash
+    const img = new Image()
+    img.src = newUrl
+    img.onload = () => {
+        displayCover.value = newUrl
+    }
+}, { immediate: true })
+
+// ... existing code ...
 </script>
 
 <template>
@@ -483,13 +515,15 @@ const onTouchEnd = () => {
         :style="{ transform: `translateY(${touchMoveY}px)`, transition: isDragging ? 'none' : 'transform 0.3s ease-out' }"
     >
         <!-- Background Blur -->
-        <div 
-            class="bg-blur" 
-            :style="{ 
-                backgroundImage: `url(${musicStore.currentSong?.cover})`,
-                transform: `scale(${bgScale})`
-            }"
-        ></div>
+        <div class="bg-blur" :style="{ transform: `scale(${bgScale})` }">
+             <Transition name="fade-slow">
+                 <div 
+                    :key="displayCover"
+                    class="bg-layer"
+                    :style="{ backgroundImage: `url(${displayCover || 'https://via.placeholder.com/300'})` }"
+                 ></div>
+             </Transition>
+        </div>
         <!-- Tint Overlay -->
         <div class="bg-tint" :style="{ background: themeColor }"></div>
         <div class="bg-mask"></div>
@@ -506,10 +540,10 @@ const onTouchEnd = () => {
             <!-- Header -->
             <div class="header">
                 <van-icon name="arrow-down" size="24" color="white" @click="$emit('close')" />
-                <div class="header-info">
+                <!-- <div class="header-info">
                     <div class="title">{{ musicStore.currentSong?.name }}</div>
                     <div class="artist">{{ musicStore.currentSong?.artist }}</div>
-                </div>
+                </div> -->
                 <div class="actions">
                     <van-icon 
                         name="desktop-o" 
@@ -588,6 +622,26 @@ const onTouchEnd = () => {
 
             <!-- Controls -->
             <div class="controls-area">
+                 <!-- Song Info & Heart (Bottom Layout) -->
+                 <div class="bottom-info-row">
+                     <div class="text-col">
+                         <div class="title-scroller">
+                             <div class="main-title">{{ musicStore.currentSong?.name || 'Unknown' }}</div>
+                         </div>
+                         <div class="sub-artist">{{ musicStore.currentSong?.artist || 'Unknown Artist' }}</div>
+                     </div>
+                     
+                     <div class="action-col">
+                        <van-icon 
+                            v-if="musicStore.currentSong"
+                            :name="favoritesStore.isFavorite(musicStore.currentSong.id) ? 'like' : 'like-o'"
+                            :color="favoritesStore.isFavorite(musicStore.currentSong.id) ? '#ff4d4f' : '#fff'"
+                            class="bottom-like-btn"
+                            @click.stop="favoritesStore.toggleFavorite(musicStore.currentSong)"
+                        />
+                     </div>
+                 </div>
+
                  <!-- Emote Bar -->
                  <div class="emote-bar" v-if="roomStore.roomId">
                       <div 
@@ -706,26 +760,48 @@ const onTouchEnd = () => {
 }
 
 .header {
-    padding: 16px 24px;
     display: flex;
-    align-items: center;
     justify-content: space-between;
+    align-items: center;
+    padding: 0 16px;
+    height: 60px;
+    flex-shrink: 0;
 }
 
-.header-info {
+.song-info {
     text-align: center;
-    max-width: 70%;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    color: #fff;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.title-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    max-width: 100%;
 }
 
 .title {
-    font-size: 20px;
-    font-weight: 800;
-    margin-bottom: 4px;
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 2px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    letter-spacing: -0.5px;
+    max-width: 200px;
+}
+
+.like-btn {
+    font-size: 20px;
+    cursor: pointer;
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.like-btn:active {
+    transform: scale(1.4);
 }
 
 .artist {
@@ -1010,6 +1086,49 @@ const onTouchEnd = () => {
 }
 
 /* Glass Controls Card */
+/* Bottom Info Layout */
+.bottom-info-row {
+    width: 100%;
+    margin-bottom: 20px;
+    padding: 0 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.text-col {
+    flex: 1;
+    overflow: hidden;
+    margin-right: 16px;
+}
+
+.main-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: white;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+}
+
+.sub-artist {
+    font-size: 16px;
+    color: rgba(255,255,255,0.7);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bottom-like-btn {
+    font-size: 28px;
+    padding: 8px;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.bottom-like-btn:active {
+    transform: scale(0.8);
+}
+
 .controls-area {
     margin: 0 16px 30px 16px; 
     padding: 24px;
@@ -1203,5 +1322,23 @@ const onTouchEnd = () => {
     font-size: 16px;
     opacity: 0.5;
     margin-bottom: 0;
+}
+
+.bg-layer {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background-size: cover;
+    background-position: center;
+}
+
+.fade-slow-enter-active,
+.fade-slow-leave-active {
+    transition: opacity 1.2s ease;
+}
+
+.fade-slow-enter-from,
+.fade-slow-leave-to {
+    opacity: 0;
 }
 </style>

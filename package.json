@@ -16,10 +16,13 @@
     "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {
+    "@types/sortablejs": "^1.15.9",
     "axios": "^1.13.2",
     "pinia": "^3.0.4",
     "socket.io-client": "^4.8.3",
+    "sortablejs": "^1.15.6",
     "vue": "^3.5.26",
+    "vue-draggable-plus": "^0.6.1",
     "vue-router": "^4.6.4"
   },
   "devDependencies": {

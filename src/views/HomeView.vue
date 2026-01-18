@@ -3,6 +3,7 @@ import { ref, watch, nextTick } from 'vue'
 import { useMusicStore, type Song } from '@/stores/music'
 import { useRoomStore } from '@/stores/room'
 import { usePlaylistStore } from '@/stores/playlist'
+import { useFavoritesStore } from '@/stores/favorites' // [NEW]
 import { useAppStore } from '@/stores/app'
 import { showToast, showSuccessToast, showFailToast } from 'vant'
 import { flyToElement } from '@/utils/animation'
@@ -13,6 +14,7 @@ const loading = ref(false)
 const musicStore = useMusicStore()
 const playlistStore = usePlaylistStore()
 const appStore = useAppStore()
+const favoritesStore = useFavoritesStore() // [NEW]
 
 // Version Easter Egg
 const appVersion = __APP_VERSION__
@@ -208,6 +210,18 @@ const insertToQueue = (song: Song, event?: MouseEvent) => {
              to="/room"
            >
              Together
+           </van-button>
+           
+           <!-- Play Random Favorite -->
+           <van-button 
+             icon="like-o" 
+             size="small" 
+             round 
+             color="rgba(255,255,255,0.2)" 
+             style="border:none; color: white; margin-left: 8px;"
+             @click="favoritesStore.playRandomFavorite()"
+           >
+             Fav Mix
            </van-button>
            <!-- <van-button 
              icon="music-o" 

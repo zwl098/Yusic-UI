@@ -3,18 +3,40 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useMusicStore } from '@/stores/music'
 import { useRoomStore } from '@/stores/room'
 import { parseLrc, type LrcLine } from '@/utils/lrc'
+import { getDominantColor } from '@/utils/color'
 
 const musicStore = useMusicStore()
 const roomStore = useRoomStore()
 const props = defineProps<{
   show: boolean
 }>()
-defineEmits(['close'])
+const emit = defineEmits(['close'])
 
 const showLyrics = ref(false)
 const lyrics = ref<LrcLine[]>([])
 const currentLineIndex = ref(0)
 const lyricsContainer = ref<HTMLElement | null>(null)
+
+// Theme Color
+const themeColor = ref('#000000')
+
+const updateThemeColor = async (url: string | undefined) => {
+    if (!url) {
+        themeColor.value = '#000000'
+        return
+    }
+    try {
+        const color = await getDominantColor(url)
+        themeColor.value = color
+    } catch (e) {
+        themeColor.value = '#000000'
+    }
+}
+
+// Watchers
+watch(() => musicStore.currentSong?.cover, (val) => {
+    updateThemeColor(val)
+}, { immediate: true })
 
 // Parse lyrics when song or lyrics change
 watch(() => [musicStore.currentSong?.id, musicStore.currentSong?.lrc], ([newId, newLrc]) => {
@@ -139,53 +161,200 @@ const showEmoteAnimation = (emoji: string) => {
     }, 3000)
 }
 
-// Visualizer
+// Visualizer & Creative Effects
 const bgScale = ref(1.2)
+const bassScale = ref(1.0) 
 let dataArray: Uint8Array | null = null
 let animationId: number | null = null
 
-const startLoop = () => {
-    if (!props.show) return // Don't run if hidden
-    const analyser = musicStore.analyser
-    if (!analyser) return
+// 1. 3D Parallax
+const cardTransform = ref('')
+const onMouseMove = (e: MouseEvent) => {
+    if (!props.show) return
+    const { innerWidth, innerHeight } = window
+    const x = (e.clientX / innerWidth - 0.5) * 2 // -1 to 1
+    const y = (e.clientY / innerHeight - 0.5) * 2 // -1 to 1
+    
+    // RotateX is based on Y axis movement, RotateY on X axis
+    // Max tilt: 15deg
+    cardTransform.value = `perspective(1000px) rotateX(${-y * 15}deg) rotateY(${x * 15}deg)`
+}
 
-    if (!dataArray) {
-        dataArray = new Uint8Array(analyser.frequencyBinCount)
+// Gyro for mobile
+const onDeviceOrientation = (e: DeviceOrientationEvent) => {
+    if (!props.show) return
+    const { beta, gamma } = e // beta: x, gamma: y
+    if (beta === null || gamma === null) return
+    
+    // Clamp values commonly -45 to 45 for viewing
+    const x = Math.min(Math.max(gamma, -45), 45) / 45
+    const y = Math.min(Math.max(beta - 45, -45), 45) / 45 // Offset beta by 45deg (holding angle)
+
+    cardTransform.value = `perspective(1000px) rotateX(${-y * 15}deg) rotateY(${x * 15}deg)`
+}
+
+// 2. Particles & Spectrum
+const particlesCanvas = ref<HTMLCanvasElement | null>(null)
+const spectrumCanvas = ref<HTMLCanvasElement | null>(null)
+
+class Particle {
+    x: number
+    y: number
+    size: number
+    speedX: number
+    speedY: number
+    opacity: number
+    
+    constructor(w: number, h: number) {
+        this.x = Math.random() * w
+        this.y = Math.random() * h
+        this.size = Math.random() * 3 + 1
+        this.speedX = (Math.random() - 0.5) * 0.5
+        this.speedY = (Math.random() - 0.5) * 0.5
+        this.opacity = Math.random() * 0.5 + 0.1
     }
     
-    // Fix: Explicit access or confirming type compatibility if needed, 
-    // but in browser env Uint8Array should be fine. 
-    // The previous error was about SharedArrayBuffer vs ArrayBuffer incompatibility in strict types.
-    // Casting 'dataArray' simply works for getByteFrequencyData
-    analyser.getByteFrequencyData(dataArray as any)
+    update(w: number, h: number, speedMultiplier: number) {
+        this.x += this.speedX * speedMultiplier
+        this.y += this.speedY * speedMultiplier
+        
+        if (this.x < 0) this.x = w
+        if (this.x > w) this.x = 0
+        if (this.y < 0) this.y = h
+        if (this.y > h) this.y = 0
+    }
     
-    // Calculate Bass (first ~10 bins)
+    draw(ctx: CanvasRenderingContext2D) {
+        ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`
+        ctx.beginPath()
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2)
+        ctx.fill()
+    }
+}
+
+let particles: Particle[] = []
+
+const initParticles = () => {
+    if (!particlesCanvas.value) return
+    const { width, height } = particlesCanvas.value
+    particles = []
+    for (let i = 0; i < 50; i++) {
+        particles.push(new Particle(width, height))
+    }
+}
+
+// Resize observer for full screen canvases
+const updateCanvasSize = () => {
+    if (particlesCanvas.value) {
+        particlesCanvas.value.width = window.innerWidth
+        particlesCanvas.value.height = window.innerHeight
+        initParticles()
+    }
+    if (spectrumCanvas.value) {
+        spectrumCanvas.value.width = 400 // Fixed size matching vinyl area roughly
+        spectrumCanvas.value.height = 400
+    }
+}
+
+const startLoop = () => {
+    if (!props.show) return 
+    const analyser = musicStore.analyser
+
+    // Prepare data
+    if (analyser && !dataArray) {
+        dataArray = new Uint8Array(analyser.frequencyBinCount)
+    }
+    if (analyser) {
+        analyser.getByteFrequencyData(dataArray as any)
+    }
+
+    // --- Calcs ---
     let sum = 0
-    // Access check
     if (dataArray && dataArray.length >= 10) {
-        const arr = dataArray
         for (let i = 0; i < 10; i++) {
-            const val = arr[i]
-            if (val !== undefined) {
-                sum += val
-            }
+            sum += dataArray[i]
         }
     }
     const average = sum / 10
+    const bassLevel = average / 255 // 0.0 to 1.0
+
+    // Smooth Bass Scale
+    const targetBass = 1 + bassLevel * 0.15
+    bassScale.value += (targetBass - bassScale.value) * 0.3
     
-    // Smooth transition
-    // Scale: 1.2 (base) + energy benefit
-    const targetScale = 1.2 + (average / 255) * 0.15
-    bgScale.value += (targetScale - bgScale.value) * 0.2 // Ease
-    
+    const targetBg = 1.2 + bassLevel * 0.1
+    bgScale.value += (targetBg - bgScale.value) * 0.1
+
+    // --- Draw Particles ---
+    if (particlesCanvas.value) {
+        const ctx = particlesCanvas.value.getContext('2d')
+        if (ctx) {
+            const { width, height } = particlesCanvas.value
+            ctx.clearRect(0, 0, width, height)
+            
+            // Speed up particles on bass kick
+            const speedMult = 1 + bassLevel * 5 
+            
+            particles.forEach(p => {
+                p.update(width, height, speedMult)
+                p.draw(ctx)
+            })
+        }
+    }
+
+    // --- Draw Circular Spectrum ---
+    if (spectrumCanvas.value && dataArray) {
+        const ctx = spectrumCanvas.value.getContext('2d')
+        if (ctx) {
+            const cx = 200
+            const cy = 200
+            const radius = 140 // Just outside vinyl (vinyl is 280px => 140px radius)
+            const bars = 60
+            const step = Math.floor(dataArray.length / bars)
+            
+            ctx.clearRect(0, 0, 400, 400)
+            
+            ctx.beginPath()
+            for (let i = 0; i < bars; i++) {
+                const val = dataArray[i * step]
+                const barHeight = (val / 255) * 50 * bassScale.value
+                
+                const angle = (i / bars) * Math.PI * 2
+                
+                // Draw bar extending outwards
+                const x1 = cx + Math.cos(angle) * (radius + 5)
+                const y1 = cy + Math.sin(angle) * (radius + 5)
+                const x2 = cx + Math.cos(angle) * (radius + 5 + barHeight)
+                const y2 = cy + Math.sin(angle) * (radius + 5 + barHeight)
+                
+                ctx.moveTo(x1, y1)
+                ctx.lineTo(x2, y2)
+            }
+            // Style
+            ctx.strokeStyle = themeColor.value === '#000000' ? 'rgba(255,255,255,0.5)' : themeColor.value
+            ctx.lineWidth = 4
+            ctx.lineCap = 'round'
+            ctx.stroke()
+        }
+    }
+
     animationId = requestAnimationFrame(startLoop)
 }
 
 watch(() => props.show, (val) => {
     if (val) {
-        startLoop()
+        nextTick(() => {
+            updateCanvasSize()
+            startLoop()
+            window.addEventListener('resize', updateCanvasSize)
+            window.addEventListener('mousemove', onMouseMove)
+            window.addEventListener('deviceorientation', onDeviceOrientation)
+        })
     } else {
         if (animationId) cancelAnimationFrame(animationId)
+        window.removeEventListener('resize', updateCanvasSize)
+        window.removeEventListener('mousemove', onMouseMove)
+        window.removeEventListener('deviceorientation', onDeviceOrientation)
     }
 })
 
@@ -267,10 +436,52 @@ const togglePip = async () => {
     } catch (e) {
     }
 }
+
+// Swipe to Close
+const touchStartY = ref(0)
+const touchMoveY = ref(0)
+const isDragging = ref(false)
+
+const onTouchStart = (e: TouchEvent) => {
+    if (e.touches.length > 0) {
+        touchStartY.value = e.touches[0].clientY
+        isDragging.value = true
+    }
+}
+
+const onTouchMove = (e: TouchEvent) => {
+    if (!isDragging.value || e.touches.length === 0) return
+    const deltaY = e.touches[0].clientY - touchStartY.value
+    if (deltaY > 0) { // Only allow dragging down
+        touchMoveY.value = deltaY
+    }
+}
+
+const onTouchEnd = () => {
+    isDragging.value = false
+    if (touchMoveY.value > 150) {
+        // Close threshold
+        emit('close')
+    }
+    // Reset position logic handles by transition in template binding or simple reset here if using spring physics
+    // For simple implementation, we just reset if not closed
+    // Ideally we should use a spring library for smooth snapback, but here we just reset
+    setTimeout(() => {
+        touchMoveY.value = 0
+    }, 200)
+}
+
+
 </script>
 
 <template>
-    <div class="full-player">
+    <div 
+        class="full-player" 
+        @touchstart="onTouchStart" 
+        @touchmove="onTouchMove" 
+        @touchend="onTouchEnd"
+        :style="{ transform: `translateY(${touchMoveY}px)`, transition: isDragging ? 'none' : 'transform 0.3s ease-out' }"
+    >
         <!-- Background Blur -->
         <div 
             class="bg-blur" 
@@ -279,7 +490,16 @@ const togglePip = async () => {
                 transform: `scale(${bgScale})`
             }"
         ></div>
+        <!-- Tint Overlay -->
+        <div class="bg-tint" :style="{ background: themeColor }"></div>
         <div class="bg-mask"></div>
+        
+        <!-- Particles Layer -->
+        <canvas 
+            ref="particlesCanvas" 
+            class="particles-layer" 
+            :class="{ hidden: showLyrics }"
+        ></canvas>
 
         <!-- content -->
         <div class="content">
@@ -324,7 +544,19 @@ const togglePip = async () => {
             <div class="main-area">
                 <Transition name="fade">
                     <div v-show="!showLyrics" class="vinyl-container" @click="showLyrics = true">
-                         <div class="vinyl-wrapper">
+                         <!-- Spectrum Layer -->
+                         <canvas ref="spectrumCanvas" class="spectrum-layer"></canvas>
+                         
+                         <div 
+                            class="vinyl-wrapper"
+                            :style="{ 
+                                transform: `${cardTransform} scale(${bassScale})`,
+                                boxShadow: `0 20px ${40 * bassScale}px rgba(0,0,0,0.6), 0 0 0 8px rgba(255,255,255,0.02), 0 0 0 1px rgba(255,255,255,0.1)`
+                            }"
+                        >
+                             <!-- Glare for 3D effect -->
+                             <div class="vinyl-glare"></div>
+                             
                              <div class="stylus" :class="{ playing: musicStore.isPlaying }"></div>
                              <div class="vinyl-disc" :class="{ rotating: musicStore.isPlaying }">
                                  <img :src="musicStore.currentSong?.cover || 'https://via.placeholder.com/300'" class="cover-img" />
@@ -443,6 +675,15 @@ const togglePip = async () => {
 @keyframes breathe {
     0% { transform: scale(1.5) rotate(0deg); }
     100% { transform: scale(1.7) rotate(2deg); }
+}
+
+.bg-tint {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    opacity: 0.6; /* Intense tint */
+    z-index: 1;
+    mix-blend-mode: multiply; /* Blends nicely with the dark background */
+    transition: background 1s ease;
 }
 
 .bg-mask {
@@ -577,12 +818,16 @@ const togglePip = async () => {
     display: flex;
     align-items: center;
     justify-content: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Dynamic Shadow Pulse based on bassScale */
     box-shadow: 
-        0 20px 40px rgba(0,0,0,0.6), /* Deep shadow */
-        0 0 0 8px rgba(255,255,255,0.02), /* Outer rim */
-        0 0 0 1px rgba(255,255,255,0.1); /* Sharp edge */
+        0 20px 40px rgba(0,0,0,0.6),
+        0 0 0 8px rgba(255,255,255,0.02), 
+        0 0 0 1px rgba(255,255,255,0.1);
     position: relative;
-    transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    /* Scale logic moved to inline style for performance */
 }
 
 /* Reflection attempt */
@@ -621,7 +866,46 @@ const togglePip = async () => {
     object-fit: cover;
 }
 
-/* Glossy Overlays for Vinyl */
+/* Particles */
+.particles-layer {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 1; /* Between mask and content */
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+}
+.particles-layer.hidden {
+    opacity: 0;
+}
+
+/* Spectrum */
+.spectrum-layer {
+    position: absolute;
+    width: 400px; /* Matching canvas size */
+    height: 400px;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: -1;
+    opacity: 0.8;
+}
+
+/* Vinyl Glare */
+.vinyl-glare {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(255,255,255,0.4) 0%, transparent 50%);
+    opacity: 0;
+    z-index: 10;
+    pointer-events: none;
+    mix-blend-mode: overlay;
+    transition: opacity 0.3s;
+}
+.vinyl-wrapper:hover .vinyl-glare {
+    opacity: 0.3;
+}
 .vinyl-disc::after {
     content: '';
     position: absolute;
@@ -908,6 +1192,7 @@ const togglePip = async () => {
     font-weight: 800;
     background: linear-gradient(to bottom, #fff 0%, #ccc 100%);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
     margin-bottom: 8px;

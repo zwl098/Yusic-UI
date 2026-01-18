@@ -440,6 +440,11 @@ const startLoop = () => {
 watch(() => props.show, (val) => {
     if (val) {
         nextTick(() => {
+            // Player Opened: Init Visualizer Context
+            if (!musicStore.audioContext) {
+                musicStore.initAudioContext()
+            }
+            
             updateCanvasSize()
             startLoop()
             window.addEventListener('resize', updateCanvasSize)
@@ -451,6 +456,10 @@ watch(() => props.show, (val) => {
             }
         })
     } else {
+        // Player Closed: Shutdown Visualizer Context
+        // This is CRITICAL for background playback on mobile when screen is locked or app minimized
+        musicStore.shutdownAudioContext()
+
         if (animationId) cancelAnimationFrame(animationId)
         window.removeEventListener('resize', updateCanvasSize)
         window.removeEventListener('mousemove', onMouseMove)

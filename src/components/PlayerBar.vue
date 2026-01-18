@@ -43,16 +43,7 @@ const onClearQueue = () => {
 
 // Manual sortable logic removed in favor of VueDraggable component
 
-// Init Audio Context once audio element is ready and user interacts (play)
-watch(() => [musicStore.audioRef, musicStore.isPlaying], ([ref, playing]) => {
-    if (ref && playing) {
-        if (!musicStore.audioContext) {
-            musicStore.initAudioContext()
-        } else if (musicStore.audioContext.state === 'suspended') {
-            musicStore.audioContext.resume()
-        }
-    }
-})
+
 
 </script>
 

@@ -2,13 +2,18 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useMusicStore } from '@/stores/music'
 import { useRoomStore } from '@/stores/room'
-import { useFavoritesStore } from '@/stores/favorites' // [NEW]
+import { useFavoritesStore } from '@/stores/favorites'
+import { useSettingsStore } from '@/stores/settings' // [NEW]
 import { parseLrc, type LrcLine } from '@/utils/lrc'
 import { getDominantColor } from '@/utils/color'
 
 const musicStore = useMusicStore()
 const roomStore = useRoomStore()
-const favoritesStore = useFavoritesStore() // [NEW]
+const favoritesStore = useFavoritesStore()
+const settingsStore = useSettingsStore() // [NEW]
+
+const showSettings = ref(false) // UI toggle
+
 const props = defineProps<{
   show: boolean
 }>()
@@ -181,7 +186,10 @@ let lastVibrateTime = 0
 // 1. 3D Parallax
 const cardTransform = ref('')
 const onMouseMove = (e: MouseEvent) => {
-    if (!props.show) return
+    if (!props.show || !settingsStore.enableParallax) {
+        if (cardTransform.value !== '') cardTransform.value = ''
+        return
+    }
     const { innerWidth, innerHeight } = window
     const x = (e.clientX / innerWidth - 0.5) * 2 // -1 to 1
     const y = (e.clientY / innerHeight - 0.5) * 2 // -1 to 1
@@ -193,7 +201,7 @@ const onMouseMove = (e: MouseEvent) => {
 
 // Gyro for mobile
 const onDeviceOrientation = (e: DeviceOrientationEvent) => {
-    if (!props.show) return
+    if (!props.show || !settingsStore.enableParallax) return
     const { beta, gamma } = e // beta: x, gamma: y
     if (beta === null || gamma === null) return
     
@@ -205,8 +213,13 @@ const onDeviceOrientation = (e: DeviceOrientationEvent) => {
 }
 
 // 2. Particles & Spectrum
+// 2. Particles & Spectrum
 const particlesCanvas = ref<HTMLCanvasElement | null>(null)
 const spectrumCanvas = ref<HTMLCanvasElement | null>(null)
+
+// Performance Refs for Direct DOM Manipulation
+const vinylWrapperRef = ref<HTMLElement | null>(null)
+const bgBlurRef = ref<HTMLElement | null>(null)
 
 
 // Resize observer for full screen canvases
@@ -262,7 +275,7 @@ const initParticles = (dpr: number) => {
     const { width, height } = particlesCanvas.value
     particles = []
     // Reduced particle count slightly for mobile
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 20; i++) {
         particles.push(new Particle(width, height, dpr))
     }
 }
@@ -303,9 +316,14 @@ const startLoop = () => {
     const targetBass = 1 + bassLevel * 0.15
     bassScale.value += (targetBass - bassScale.value) * 0.3
     
+    // Direct DOM manipulation - Bypass Vue Reactivity for 60fps
+    if (vinylWrapperRef.value) {
+        vinylWrapperRef.value.style.transform = `${cardTransform.value} scale(${bassScale.value})`
+    }
+
     // 4D Haptic Bass (Vibration)
     const now = Date.now()
-    if (average > 210 && now - lastVibrateTime > 300) {
+    if (settingsStore.enableHaptics && average > 210 && now - lastVibrateTime > 300) {
         if (typeof navigator !== 'undefined' && navigator.vibrate) {
             try { navigator.vibrate(15) } catch(e) {}
         }
@@ -314,9 +332,14 @@ const startLoop = () => {
 
     const targetBg = 1.2 + bassLevel * 0.1
     bgScale.value += (targetBg - bgScale.value) * 0.1
+    
+    // Direct DOM manipulation
+    if (bgBlurRef.value) {
+        bgBlurRef.value.style.transform = `scale(${bgScale.value})`
+    }
 
     // --- Draw Particles ---
-    if (particlesCanvas.value) {
+    if (settingsStore.showParticles && shouldDraw && particlesCanvas.value) {
         const ctx = particlesCanvas.value.getContext('2d')
         if (ctx) {
             const { width, height } = particlesCanvas.value
@@ -335,10 +358,14 @@ const startLoop = () => {
             })
             ctx.fill()
         }
+    } else if (!settingsStore.showParticles && particlesCanvas.value) {
+         // Clear if disabled
+         const ctx = particlesCanvas.value.getContext('2d')
+         if (ctx) ctx.clearRect(0,0, particlesCanvas.value.width, particlesCanvas.value.height)
     }
 
     // --- Draw Circular Spectrum ---
-    if (spectrumCanvas.value && dataArray) {
+    if (settingsStore.showSpectrum && shouldDraw && spectrumCanvas.value && dataArray) {
         const ctx = spectrumCanvas.value.getContext('2d')
         const currentData = dataArray
         if (ctx) {
@@ -372,6 +399,9 @@ const startLoop = () => {
             ctx.lineCap = 'round'
             ctx.stroke()
         }
+    } else if (!settingsStore.showSpectrum && spectrumCanvas.value) {
+        const ctx = spectrumCanvas.value.getContext('2d')
+        if (ctx) ctx.clearRect(0, 0, 400, 400)
     }
 
     animationId = requestAnimationFrame(startLoop)
@@ -538,8 +568,9 @@ watch(() => musicStore.currentSong?.cover, (newUrl) => {
         @touchend="onTouchEnd"
         :style="{ transform: `translateY(${touchMoveY}px)`, transition: isDragging ? 'none' : 'transform 0.3s ease-out' }"
     >
+    >
         <!-- Background Blur -->
-        <div class="bg-blur" :style="{ transform: `scale(${bgScale})` }">
+        <div class="bg-blur" ref="bgBlurRef">
              <Transition name="fade-slow">
                  <div 
                     :key="displayCover"
@@ -569,6 +600,13 @@ watch(() => musicStore.currentSong?.cover, (newUrl) => {
                     <div class="artist">{{ musicStore.currentSong?.artist }}</div>
                 </div> -->
                 <div class="actions">
+                     <van-icon 
+                        name="setting-o" 
+                        size="24" 
+                        color="white" 
+                        @click="showSettings = true" 
+                        style="margin-right: 16px;" 
+                    />
                     <van-icon 
                         name="desktop-o" 
                         size="24" 
@@ -605,11 +643,10 @@ watch(() => musicStore.currentSong?.cover, (newUrl) => {
                          <!-- Spectrum Layer -->
                          <canvas ref="spectrumCanvas" class="spectrum-layer"></canvas>
                          
+                         
                          <div 
                             class="vinyl-wrapper"
-                            :style="{ 
-                                transform: `${cardTransform} scale(${bassScale})`
-                            }"
+                            ref="vinylWrapperRef"
                         >
                              <!-- Glare for 3D effect -->
                              <div class="vinyl-glare"></div>
@@ -704,6 +741,36 @@ watch(() => musicStore.currentSong?.cover, (newUrl) => {
         
         <!-- Floating Emotes Container -->
         <div class="floating-emotes" ref="emoteContainer"></div>
+
+        <!-- Settings Popup -->
+         <van-popup 
+            v-model:show="showSettings" 
+            position="bottom" 
+            round 
+            :style="{ height: 'auto', padding: '24px', background: '#1e1e1e' }"
+        >
+             <div class="settings-title">Effects & Performance</div>
+             
+             <div class="setting-item">
+                 <span>粒子氛围 (Particles)</span>
+                 <van-switch v-model="settingsStore.showParticles" size="20px" active-color="#6200ea" />
+             </div>
+             
+             <div class="setting-item">
+                 <span>环形频谱 (Spectrum)</span>
+                 <van-switch v-model="settingsStore.showSpectrum" size="20px" active-color="#6200ea" />
+             </div>
+             
+             <div class="setting-item">
+                 <span>3D 视差 (Parallax)</span>
+                 <van-switch v-model="settingsStore.enableParallax" size="20px" active-color="#6200ea" />
+             </div>
+             
+             <div class="setting-item">
+                 <span>震感反馈 (Haptics)</span>
+                 <van-switch v-model="settingsStore.enableHaptics" size="20px" active-color="#6200ea" />
+             </div>
+         </van-popup>
     </div>
 </template>
 <style scoped>
@@ -859,6 +926,7 @@ watch(() => musicStore.currentSong?.cover, (newUrl) => {
     align-items: center;
     justify-content: center;
     will-change: transform, opacity; /* Hint for transition */
+    contain: layout paint; /* Optimization: Isolate layout calculations */
 }
 
 .lyrics-wrapper {
@@ -1375,5 +1443,23 @@ watch(() => musicStore.currentSong?.cover, (newUrl) => {
 .fade-slow-enter-from,
 .fade-slow-leave-to {
     opacity: 0;
+}
+/* Settings */
+.settings-title {
+    color: white;
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 24px;
+    text-align: center;
+}
+
+.setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.9);
+    font-size: 16px;
 }
 </style>

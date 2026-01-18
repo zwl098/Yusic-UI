@@ -321,33 +321,37 @@ const togglePip = async () => {
 
 
             <!-- Main Area -->
-            <div class="main-area" @click="showLyrics = !showLyrics">
-                 <!-- Vinyl Mode -->
-                 <div class="vinyl-wrapper" v-show="!showLyrics">
-                      <div class="stylus" :class="{ playing: musicStore.isPlaying }"></div>
-                      <div class="vinyl-disc" :class="{ rotating: musicStore.isPlaying }">
-                          <img :src="musicStore.currentSong?.cover || 'https://via.placeholder.com/300'" class="cover-img" />
-                      </div>
-                 </div>
+            <div class="main-area">
+                <Transition name="fade">
+                    <div v-show="!showLyrics" class="vinyl-container" @click="showLyrics = true">
+                         <div class="vinyl-wrapper">
+                             <div class="stylus" :class="{ playing: musicStore.isPlaying }"></div>
+                             <div class="vinyl-disc" :class="{ rotating: musicStore.isPlaying }">
+                                 <img :src="musicStore.currentSong?.cover || 'https://via.placeholder.com/300'" class="cover-img" />
+                             </div>
+                         </div>
+                    </div>
+                </Transition>
 
-                 <!-- Lyrics Mode -->
-                 <div class="lyrics-wrapper" v-show="showLyrics" ref="lyricsContainer">
-                      <div v-if="lyrics.length === 0" class="no-lyrics">No Lyrics</div>
-                      <div 
-                        v-else
-                         v-for="(line, index) in lyrics" 
-                         :key="index" 
-                         class="lrc-line"
-                         :class="{ active: index === currentLineIndex, interlude: line.isInterlude }"
-                       >
-                           <span class="lrc-text">{{ line.text }}</span>
-                           <van-icon 
-                                name="play-circle-o" 
-                                class="lrc-play-icon" 
-                                @click.stop="seekToLine(line)" 
-                           />
-                       </div>
-                 </div>
+                <Transition name="fade">
+                    <div v-show="showLyrics" class="lyrics-wrapper" ref="lyricsContainer" @click="showLyrics = false">
+                         <div v-if="lyrics.length === 0" class="no-lyrics">No Lyrics</div>
+                         <div 
+                           v-else
+                            v-for="(line, index) in lyrics" 
+                            :key="index" 
+                            class="lrc-line"
+                            :class="{ active: index === currentLineIndex, interlude: line.isInterlude }"
+                          >
+                              <span class="lrc-text">{{ line.text }}</span>
+                              <van-icon 
+                                   name="play-circle-o" 
+                                   class="lrc-play-icon" 
+                                   @click.stop="seekToLine(line)" 
+                              />
+                          </div>
+                    </div>
+                </Transition>
             </div>
 
             <!-- Controls -->
@@ -422,6 +426,20 @@ const togglePip = async () => {
     will-change: transform;
 }
 
+.full-player::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 3;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    background-size: 150px 150px;
+}
+
 @keyframes breathe {
     0% { transform: scale(1.5) rotate(0deg); }
     100% { transform: scale(1.7) rotate(2deg); }
@@ -484,12 +502,70 @@ const togglePip = async () => {
 
 .main-area {
     flex: 1;
+    display: grid; 
+    grid-template-areas: "content";
+    grid-template-rows: 100%; /* Constrain height strictly */
+    grid-template-columns: 100%; /* Constrain width strictly */
+    overflow: hidden;
+    position: relative;
+    perspective: 1000px;
+}
+
+.vinyl-container {
+    grid-area: content;
+    width: 100%;
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
-    position: relative;
-    perspective: 1000px; /* For 3D effects */
+}
+
+.lyrics-wrapper {
+    grid-area: content;
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    /* Styles previously in .lyrics-wrapper */
+    padding: 50vh 0;
+    text-align: left;
+    mask-image: linear-gradient(
+        to bottom, 
+        transparent 0%, 
+        black 25%, 
+        black 75%, 
+        transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+        to bottom, 
+        transparent 0%, 
+        black 25%, 
+        black 75%, 
+        transparent 100%
+    );
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    box-sizing: border-box;
+    padding-left: 32px;
+    padding-right: 32px;
+}
+
+/* Transitions */
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity 0.5s cubic-bezier(0.33, 1, 0.68, 1), transform 0.5s cubic-bezier(0.33, 1, 0.68, 1);
+    z-index: 1;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+    opacity: 0;
+    transform: scale(0.92);
+}
+
+.fade-enter-to,
+.fade-leave-from {
+    opacity: 1;
+    transform: scale(1);
 }
 
 /* Ultra Premium Vinyl */
@@ -503,7 +579,7 @@ const togglePip = async () => {
     justify-content: center;
     box-shadow: 
         0 20px 40px rgba(0,0,0,0.6), /* Deep shadow */
-        0 0 0 10px rgba(255,255,255,0.02), /* Outer rim */
+        0 0 0 8px rgba(255,255,255,0.02), /* Outer rim */
         0 0 0 1px rgba(255,255,255,0.1); /* Sharp edge */
     position: relative;
     transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -519,8 +595,6 @@ const togglePip = async () => {
     height: 100%;
     border-radius: 50%;
     background: inherit;
-    /* Use the same cover image technically? No, hard to do specifically without duplicating img tag. */
-    /* Let's just do a shadow reflection */
     background: radial-gradient(ellipse at center, rgba(255,255,255,0.1) 0%, transparent 60%);
     opacity: 0.3;
     transform: scaleY(0.4);
@@ -534,7 +608,7 @@ const togglePip = async () => {
     border-radius: 50%;
     overflow: hidden;
     position: relative;
-    box-shadow: inset 0 0 20px rgba(0,0,0,1);
+    box-shadow: inset 0 0 0 6px #1a1a1a, inset 0 0 0 12px #000; /* Realistic edge */
 }
 
 .vinyl-disc.rotating {
@@ -553,10 +627,12 @@ const togglePip = async () => {
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
     background: 
-        linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 40%, transparent 60%, rgba(255,255,255,0.1) 100%),
-        repeating-radial-gradient(rgba(255,255,255,0.05) 0, rgba(255,255,255,0.05) 1px, transparent 2px, transparent 4px);
+        linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 40%, transparent 60%, rgba(255,255,255,0.05) 100%),
+        repeating-radial-gradient(#111 0, #111 2px, #222 3px, #222 4px); /* Vinyl grooves */
+    mix-blend-mode: overlay;
     border-radius: 50%;
     pointer-events: none;
+    opacity: 0.6;
 }
 
 @keyframes rotate {
@@ -623,12 +699,23 @@ const togglePip = async () => {
     margin: 20px 0; /* Extra spacing to isolate the active line */
 }
 
+
 .lrc-line.interlude {
-    font-family: 'Times New Roman', serif;
-    font-style: italic;
-    color: #ffd700;
-    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+    font-family: 'Menlo', monospace;
+    font-style: normal;
+    font-size: 14px;
+    letter-spacing: 2px;
+    color: rgba(255, 255, 255, 0.7);
+    text-shadow: none;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 4px 16px;
+    border-radius: 20px;
+    display: inline-block;
+    margin: 10px 0;
+    text-transform: uppercase;
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
+
 
 .no-lyrics {
     text-align: center;
@@ -689,6 +776,11 @@ const togglePip = async () => {
 .buttons .van-icon:hover {
     opacity: 1;
     filter: drop-shadow(0 0 10px rgba(255,255,255,0.6));
+    transform: scale(1.1);
+}
+
+.buttons .van-icon:active {
+    transform: scale(0.9);
 }
 
 .play-btn {

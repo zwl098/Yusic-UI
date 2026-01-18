@@ -208,6 +208,25 @@ const onDeviceOrientation = (e: DeviceOrientationEvent) => {
 const particlesCanvas = ref<HTMLCanvasElement | null>(null)
 const spectrumCanvas = ref<HTMLCanvasElement | null>(null)
 
+
+// Resize observer for full screen canvases
+const updateCanvasSize = () => {
+    // Cap DPR to 1.5 for performance on high-res screens
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5)
+    
+    if (particlesCanvas.value) {
+        particlesCanvas.value.width = window.innerWidth * dpr
+        particlesCanvas.value.height = window.innerHeight * dpr
+        initParticles(dpr)
+    }
+    if (spectrumCanvas.value) {
+        spectrumCanvas.value.width = 400 * dpr
+        spectrumCanvas.value.height = 400 * dpr
+        const ctx = spectrumCanvas.value.getContext('2d')
+        if (ctx) ctx.scale(dpr, dpr)
+    }
+}
+
 class Particle {
     x: number
     y: number
@@ -216,12 +235,12 @@ class Particle {
     speedY: number
     opacity: number
     
-    constructor(w: number, h: number) {
+    constructor(w: number, h: number, dpr: number) {
         this.x = Math.random() * w
         this.y = Math.random() * h
-        this.size = Math.random() * 3 + 1
-        this.speedX = (Math.random() - 0.5) * 0.5
-        this.speedY = (Math.random() - 0.5) * 0.5
+        this.size = (Math.random() * 3 + 1) * dpr
+        this.speedX = (Math.random() - 0.5) * 0.5 * dpr
+        this.speedY = (Math.random() - 0.5) * 0.5 * dpr
         this.opacity = Math.random() * 0.5 + 0.1
     }
     
@@ -234,38 +253,20 @@ class Particle {
         if (this.y < 0) this.y = h
         if (this.y > h) this.y = 0
     }
-    
-    draw(ctx: CanvasRenderingContext2D) {
-        ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`
-        ctx.beginPath()
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2)
-        ctx.fill()
-    }
 }
 
 let particles: Particle[] = []
 
-const initParticles = () => {
+const initParticles = (dpr: number) => {
     if (!particlesCanvas.value) return
     const { width, height } = particlesCanvas.value
     particles = []
-    for (let i = 0; i < 50; i++) {
-        particles.push(new Particle(width, height))
+    // Reduced particle count slightly for mobile
+    for (let i = 0; i < 40; i++) {
+        particles.push(new Particle(width, height, dpr))
     }
 }
 
-// Resize observer for full screen canvases
-const updateCanvasSize = () => {
-    if (particlesCanvas.value) {
-        particlesCanvas.value.width = window.innerWidth
-        particlesCanvas.value.height = window.innerHeight
-        initParticles()
-    }
-    if (spectrumCanvas.value) {
-        spectrumCanvas.value.width = 400 // Fixed size matching vinyl area roughly
-        spectrumCanvas.value.height = 400
-    }
-}
 
 const startLoop = () => {
     if (!props.show) return 
@@ -316,13 +317,18 @@ const startLoop = () => {
             const { width, height } = particlesCanvas.value
             ctx.clearRect(0, 0, width, height)
             
-            // Speed up particles on bass kick
             const speedMult = 1 + bassLevel * 5 
+            
+            // Optimization: Batch drawing
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)'
+            ctx.beginPath()
             
             particles.forEach(p => {
                 p.update(width, height, speedMult)
-                p.draw(ctx)
+                ctx.moveTo(p.x + p.size, p.y)
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
             })
+            ctx.fill()
         }
     }
 
@@ -597,8 +603,7 @@ watch(() => musicStore.currentSong?.cover, (newUrl) => {
                          <div 
                             class="vinyl-wrapper"
                             :style="{ 
-                                transform: `${cardTransform} scale(${bassScale})`,
-                                boxShadow: `0 20px ${40 * bassScale}px rgba(0,0,0,0.6), 0 0 0 8px rgba(255,255,255,0.02), 0 0 0 1px rgba(255,255,255,0.1)`
+                                transform: `${cardTransform} scale(${bassScale})`
                             }"
                         >
                              <!-- Glare for 3D effect -->
@@ -721,8 +726,8 @@ watch(() => musicStore.currentSong?.cover, (newUrl) => {
     filter: blur(60px) brightness(0.5); /* Darker for better contrast */
     transform: scale(1.5);
     z-index: 0;
-    animation: breathe 30s ease-in-out infinite alternate;
     will-change: transform;
+    animation: breathe 30s ease-in-out infinite alternate;
 }
 
 .full-player::before {
@@ -907,16 +912,15 @@ watch(() => musicStore.currentSong?.cover, (newUrl) => {
     display: flex;
     align-items: center;
     justify-content: center;
-    display: flex;
     align-items: center;
     justify-content: center;
-    /* Dynamic Shadow Pulse based on bassScale */
+    /* Static shadow, scales with transform */
     box-shadow: 
         0 20px 40px rgba(0,0,0,0.6),
         0 0 0 8px rgba(255,255,255,0.02), 
         0 0 0 1px rgba(255,255,255,0.1);
     position: relative;
-    /* Scale logic moved to inline style for performance */
+    will-change: transform; /* Hardware acceleration */
 }
 
 /* Reflection attempt */
@@ -1224,17 +1228,25 @@ watch(() => musicStore.currentSong?.cover, (newUrl) => {
 /* Glass Emote Bar */
 .emote-bar {
     display: flex;
-    justify-content: center;
-    gap: 24px;
-    margin-bottom: 20px;
-    padding: 12px 24px;
+    justify-content: flex-start; /* Changed from center to allow proper scrolling */
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 24px;
+    padding: 12px 20px;
     background: rgba(255,255,255,0.02);
     border-radius: 40px;
     border: 1px solid rgba(255,255,255,0.05);
     backdrop-filter: blur(10px);
-    width: fit-content;
-    margin-left: auto;
-    margin-right: auto;
+    
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Hide scrollbar Firefox */
+}
+
+.emote-bar::-webkit-scrollbar {
+    display: none; /* Hide scrollbar Chrome/Safari */
 }
 
 .emote-btn {

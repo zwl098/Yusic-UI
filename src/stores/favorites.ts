@@ -46,8 +46,10 @@ export const useFavoritesStore = defineStore('favorites', () => {
         }
         const randomIndex = Math.floor(Math.random() * favorites.value.length)
         const song = favorites.value[randomIndex]
-        musicStore.playSong(song)
-        showToast(`Playing favorite: ${song.name} 🎲`)
+        if (song) {
+            musicStore.playSong(song)
+            showToast(`Playing favorite: ${song.name} 🎲`)
+        }
     }
 
     return {

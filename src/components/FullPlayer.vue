@@ -273,9 +273,13 @@ const startLoop = () => {
 
     // --- Calcs ---
     let sum = 0
-    if (dataArray && dataArray.length >= 10) {
+    const currentData = dataArray
+    if (currentData && currentData.length >= 10) {
         for (let i = 0; i < 10; i++) {
-            sum += dataArray[i]
+            const val = currentData[i]
+            if (val !== undefined) {
+                sum += val
+            }
         }
     }
     const average = sum / 10
@@ -317,18 +321,19 @@ const startLoop = () => {
     // --- Draw Circular Spectrum ---
     if (spectrumCanvas.value && dataArray) {
         const ctx = spectrumCanvas.value.getContext('2d')
+        const currentData = dataArray
         if (ctx) {
             const cx = 200
             const cy = 200
             const radius = 140 // Just outside vinyl (vinyl is 280px => 140px radius)
             const bars = 60
-            const step = Math.floor(dataArray.length / bars)
+            const step = Math.floor(currentData.length / bars)
             
             ctx.clearRect(0, 0, 400, 400)
             
             ctx.beginPath()
             for (let i = 0; i < bars; i++) {
-                const val = dataArray[i * step]
+                const val = currentData[i * step] || 0
                 const barHeight = (val / 255) * 50 * bassScale.value
                 
                 const angle = (i / bars) * Math.PI * 2
@@ -456,7 +461,7 @@ const isDragging = ref(false)
 
 const onTouchStart = (e: TouchEvent) => {
     if (e.touches.length > 0) {
-        touchStartY.value = e.touches[0].clientY
+        touchStartY.value = e.touches[0]!.clientY
         isDragging.value = true
     }
 }
@@ -469,7 +474,7 @@ const onTouchMove = (e: TouchEvent) => {
         return
     }
 
-    const deltaY = e.touches[0].clientY - touchStartY.value
+    const deltaY = e.touches[0]!.clientY - touchStartY.value
     if (deltaY > 0) { // Only allow dragging down
         if (e.cancelable) e.preventDefault() // Prevent native pull-to-refresh
         touchMoveY.value = deltaY
@@ -634,8 +639,8 @@ watch(() => musicStore.currentSong?.cover, (newUrl) => {
                      <div class="action-col">
                         <van-icon 
                             v-if="musicStore.currentSong"
-                            :name="favoritesStore.isFavorite(musicStore.currentSong.id) ? 'like' : 'like-o'"
-                            :color="favoritesStore.isFavorite(musicStore.currentSong.id) ? '#ff4d4f' : '#fff'"
+                            :name="favoritesStore.isFavorite(musicStore.currentSong?.id) ? 'like' : 'like-o'"
+                            :color="favoritesStore.isFavorite(musicStore.currentSong?.id) ? '#ff4d4f' : '#fff'"
                             class="bottom-like-btn"
                             @click.stop="favoritesStore.toggleFavorite(musicStore.currentSong)"
                         />

@@ -88,6 +88,13 @@ watch(() => musicStore.currentTime, (time) => {
     }
 })
 
+// Scroll when lyrics view opens
+watch(showLyrics, (val) => {
+    if (val) {
+        scrollToCurrentLine()
+    }
+})
+
 const seekToLine = (line: LrcLine) => {
     if (roomStore.roomId) {
         import('vant').then(({ showToast }) => showToast('Seeking disabled in Listen Together'))
@@ -111,8 +118,9 @@ const scrollToCurrentLine = () => {
         if (!lyricsContainer.value) return
         const activeLine = lyricsContainer.value.querySelector('.lrc-line.active') as HTMLElement
         if (activeLine) {
+             // Align to 40% height (slightly above center) for better reading flow
              lyricsContainer.value.scrollTo({
-                 top: activeLine.offsetTop - lyricsContainer.value.clientHeight / 2 + activeLine.clientHeight / 2,
+                 top: activeLine.offsetTop - lyricsContainer.value.clientHeight * 0.4 + activeLine.clientHeight / 2,
                  behavior: 'smooth'
              })
         }
@@ -847,21 +855,21 @@ watch(() => musicStore.currentSong?.cover, (newUrl) => {
     width: 100%;
     height: 100%;
     overflow-y: auto;
-    /* Styles previously in .lyrics-wrapper */
-    padding: 50vh 0;
+    /* Optimized padding: Start higher (30vh) to show more content */
+    padding: 30vh 0 60vh 0;
     text-align: left;
     mask-image: linear-gradient(
         to bottom, 
         transparent 0%, 
-        black 25%, 
-        black 75%, 
+        black 15%, 
+        black 85%, 
         transparent 100%
     );
     -webkit-mask-image: linear-gradient(
         to bottom, 
         transparent 0%, 
-        black 25%, 
-        black 75%, 
+        black 15%, 
+        black 85%, 
         transparent 100%
     );
     -webkit-overflow-scrolling: touch;

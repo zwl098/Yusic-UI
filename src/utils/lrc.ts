@@ -5,9 +5,15 @@ export interface LrcLine {
 }
 
 export function parseLrc(lrc: string | undefined): LrcLine[] {
-    if (!lrc) return []
+    if (!lrc) {
+        console.log('[LRC] Parse called with empty/null')
+        return []
+    }
 
+    console.log('[LRC] Parse input type:', typeof lrc, 'Preview:', lrc.slice(0, 50).replace(/\n/g, '\\n'))
     const lines = lrc.split('\n')
+    console.log('[LRC] Split lines count:', lines.length)
+
     const result: LrcLine[] = []
 
     const timeReg = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/

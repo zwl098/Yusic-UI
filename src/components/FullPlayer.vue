@@ -17,19 +17,16 @@ const currentLineIndex = ref(0)
 const lyricsContainer = ref<HTMLElement | null>(null)
 
 // Parse lyrics when song or lyrics change
-watch(() => musicStore.currentSong, (newSong) => {
-    console.log(newSong)
-    if (!newSong) {
+watch(() => [musicStore.currentSong?.id, musicStore.currentSong?.lrc], ([newId, newLrc]) => {
+    // console.log('[FullPlayer] Watcher triggered. ID:', newId, 'LRC length:', newLrc?.length)
+    if (!newId || !musicStore.currentSong) {
         lyrics.value = []
         return
     }
-
-    if (newSong.lrc) {
-        lyrics.value = parseLrc(newSong.lrc)
+    if (newLrc) {
+        lyrics.value = parseLrc(newLrc)
     } else {
         lyrics.value = []
-        // Trigger fetch if missing
-        // musicStore.fetchLyrics(newSong) // Logic moved to music.ts playSong
     }
     currentLineIndex.value = 0
 }, { immediate: true, deep: true })
@@ -68,10 +65,20 @@ watch(() => musicStore.currentTime, (time) => {
 })
 
 const seekToLine = (line: LrcLine) => {
+    if (roomStore.roomId) {
+        import('vant').then(({ showToast }) => showToast('Seeking disabled in Listen Together'))
+        return
+    }
     musicStore.seek(line.time)
     // roomStore.emitSeek(line.time)
     if (!musicStore.isPlaying) {
         musicStore.togglePlay()
+    }
+}
+
+const onSliderClick = () => {
+    if (roomStore.roomId) {
+        import('vant').then(({ showToast }) => showToast('Seeking disabled in Listen Together'))
     }
 }
 
@@ -239,7 +246,6 @@ const togglePip = async () => {
                      pip.document.head.appendChild(style)
                 }
             } catch (e) {
-                console.warn(e)
             }
         })
 
@@ -259,7 +265,6 @@ const togglePip = async () => {
         })
 
     } catch (e) {
-        console.error('Failed to open PiP:', e)
     }
 }
 </script>
@@ -284,6 +289,7 @@ const togglePip = async () => {
                 <div class="header-info">
                     <div class="title">{{ musicStore.currentSong?.name }}</div>
                     <div class="artist">{{ musicStore.currentSong?.artist }}</div>
+                    <van-icon  name="desktop-o"  @click="console.log('DEBUG:', { lyrics: lyrics, song: musicStore.currentSong })" />
                 </div>
                 <div class="actions">
                     <van-icon 
@@ -360,9 +366,16 @@ const togglePip = async () => {
                  </div>
 
                  <!-- Progress Bar -->
-                 <div class="progress-bar">
+                 <div class="progress-bar" @click.capture="onSliderClick">
                       <span class="time-text">{{ formatTime(musicStore.currentTime) }}</span>
-                      <van-slider v-model="progress" bar-height="4px" button-size="12px" active-color="#fff" inactive-color="rgba(255,255,255,0.3)" />
+                      <van-slider 
+                        v-model="progress" 
+                        bar-height="4px" 
+                        button-size="12px" 
+                        active-color="#fff" 
+                        inactive-color="rgba(255,255,255,0.3)" 
+                        :readonly="!!roomStore.roomId"
+                      />
                       <span class="time-text">{{ formatTime(musicStore.duration) }}</span>
                  </div>
 

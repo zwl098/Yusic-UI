@@ -1,4 +1,4 @@
-import { request } from './request'
+import { request, BASE_URL } from './request'
 
 export interface SongInfo {
     id: string
@@ -76,5 +76,12 @@ export const tunefreeApi = {
      */
     getPic: (id: string, source: MusicSource) => {
         return request<any>(`?type=pic&id=${id}&source=${source}`)
+    },
+
+    /**
+     * Get direct audio source URL (no request)
+     */
+    getAudioSrc: (id: string, source: MusicSource) => {
+        return `${BASE_URL}?type=url&id=${id}&source=${source}`
     }
 }

@@ -33,56 +33,85 @@ export const useMusicStore = defineStore('music', () => {
                     source: item.platform || source,
                     url: item.url.replace(/http:/g, 'https:'),
                     cover: item.pic.replace(/http:/g, 'https:')
-                    // lrc: item.lrc // Ignore lyrics from search results, fetch via API
                 }))
             }
             return []
         } catch (error) {
-            console.error('Search failed:', error)
             return []
         }
     }
 
     const fetchLyrics = async (song: Song) => {
-        // If we already have lyrics and it's not a URL (basic check), return
-        // But since we don't set it in searchMusic, it should be empty initially.
+        // 1. If we have lyrics text (not URL), we are done.
         if (song.lrc && !song.lrc.startsWith('http')) return
 
-        console.log('[MusicStore] Lyrics missing/invalid for:', song.name, 'Fetching via API...')
+        let lyricText: string | null = null
 
         try {
-            // Priority: API getLyric
-            console.log('[MusicStore] Fetching via API...')
-            const res = await tunefreeApi.getLyric(song.id, song.source)
-            console.log('[MusicStore] Lyric API response:', res)
+            // 2. Determine the source: Existing URL or API?
+            if (song.lrc && song.lrc.startsWith('http')) {
+                console.log('[MusicStore] Using existing lyrics URL:', song.lrc)
+                lyricText = song.lrc
+            } else {
+                // console.log('[MusicStore] No lyrics URL, calling API...')
+                const res = await tunefreeApi.getLyric(song.id, song.source)
 
-            // Direct string response
-            if (typeof res === 'string') {
-                song.lrc = res
-                return
-            }
-
-            // Object response
-            if (res.code === 200 || (res.data && typeof res.data === 'string')) { // Some APIs strictly return 200, others might just return data
-                if (typeof res.data === 'string') {
-                    song.lrc = res.data
-                } else if (res.data && res.data.lrc) {
-                    song.lrc = res.data.lrc
-                } else {
-                    song.lrc = JSON.stringify(res.data)
+                // Process API response
+                if (typeof res === 'string') {
+                    lyricText = res
+                } else if (res.code === 200 || (res.data && typeof res.data === 'string')) {
+                    if (typeof res.data === 'string') {
+                        lyricText = res.data
+                    } else if (res.data && res.data.lrc) {
+                        lyricText = res.data.lrc
+                    } else {
+                        lyricText = JSON.stringify(res.data)
+                    }
+                } else if (res.lrc) {
+                    lyricText = res.lrc
                 }
-            } else if (res.lrc) {
-                // Fallback for flat object
-                song.lrc = res.lrc
             }
 
-            // Trigger reactivity update if song is currentSong
-            if (currentSong.value && currentSong.value.id === song.id) {
-                // Pinia state is reactive.
+            // 3. If we have a URL now, fetch its content
+            if (lyricText && lyricText.startsWith('http')) {
+                console.log('[MusicStore] Fetching content from URL...')
+
+                // CORS Proxy Fix for Dev
+                let fetchUrl = lyricText
+                if (import.meta.env.DEV && lyricText.includes('music-dl.sayqz.com/api')) {
+                    fetchUrl = lyricText.replace('https://music-dl.sayqz.com/api', '/api')
+                    console.log('[MusicStore] Rewrote URL for proxy:', fetchUrl)
+                }
+
+                try {
+                    const lyrRes = await fetch(fetchUrl)
+                    const text = await lyrRes.text()
+                    // Verify it's not HTML (sometimes 404 returns html)
+                    if (!text.trim().toLowerCase().startsWith('<!doctype')) {
+                        lyricText = text
+                        console.log('[MusicStore] Fetched lyric content length:', lyricText.length)
+                    } else {
+                        console.warn('[MusicStore] Fetched content looks like HTML (error page?), keeping URL.')
+                    }
+                } catch (err) {
+                    console.warn('[MusicStore] Failed to fetch lyric URL:', err)
+                }
+            }
+
+            // 4. Update State
+            if (lyricText && !lyricText.startsWith('http')) {
+                song.lrc = lyricText
+                // Trigger reactivity update if song is currentSong
+                if (currentSong.value && currentSong.value.id === song.id) {
+                    currentSong.value.lrc = song.lrc
+                }
             }
         } catch (e) {
-            console.error('[MusicStore] Failed to fetch lyrics:', e)
+            console.error('[MusicStore] fetchLyrics error:', e)
             song.lrc = '[00:00.00] Lyrics load failed'
+            if (currentSong.value && currentSong.value.id === song.id) {
+                currentSong.value.lrc = song.lrc
+            }
         }
     }
 
@@ -102,27 +131,19 @@ export const useMusicStore = defineStore('music', () => {
             currentObjectUrl = null
         }
 
-        console.log('[MusicStore] Starting playback for:', song.name)
 
         try {
-            // 1. Get Fresh URL
-            const res = await tunefreeApi.getMusicUrl(song.id, song.source)
-            let finalUrl = ''
-            if (res.code === 200) {
-                if (typeof res.data === 'string') finalUrl = res.data
-                else if (res.data && res.data.url) finalUrl = res.data.url
-            }
+            // 1. Get Fresh URL via direct link (Backend redirects to file)
+            // console.log('[MusicStore] Constructing URL for:', song.name, song.id)
+            const finalUrl = tunefreeApi.getAudioSrc(song.id, song.source)
 
             if (finalUrl) {
-                // Force HTTPS
-                finalUrl = finalUrl.replace(/http:/g, 'https:')
                 // Update URL
                 if (currentSong.value && currentSong.value.id === song.id) {
                     currentSong.value.url = finalUrl
-                    console.log('[MusicStore] URL Refreshed:', finalUrl)
                 }
             } else {
-                console.warn('[MusicStore] Failed to get fresh URL, using default if available')
+                console.error('[MusicStore] Failed to generate URL')
             }
 
             // 3. Play
@@ -130,11 +151,10 @@ export const useMusicStore = defineStore('music', () => {
             import('vue').then(({ nextTick }) => {
                 nextTick(() => {
                     const audio = audioRef.value
-                    if (audio) {
+                    if (audio && currentSong.value?.url) {
                         const playPromise = audio.play()
                         if (playPromise !== undefined) {
                             playPromise.catch(error => {
-                                console.warn('[MusicStore] Autoplay prevented or interrupted:', error)
                                 import('vant').then(({ showFailToast }) => {
                                     showFailToast({
                                         message: `Play Error: ${error.name}`,
@@ -149,7 +169,6 @@ export const useMusicStore = defineStore('music', () => {
             })
 
         } catch (e: any) {
-            console.error('[MusicStore] Setup failed:', e)
             import('vant').then(({ showFailToast }) => {
                 showFailToast(`Error: ${e.message}`)
             })
@@ -157,13 +176,40 @@ export const useMusicStore = defineStore('music', () => {
     }
 
     const togglePlay = () => {
+        console.log('[MusicStore] togglePlay called. state:', {
+            playing: isPlaying.value,
+            hasUrl: !!currentSong.value?.url,
+            hasAudio: !!audioRef.value,
+            volume: audioRef.value?.volume,
+            paused: audioRef.value?.paused
+        })
+
         if (currentSong.value && audioRef.value) {
             if (isPlaying.value) {
                 audioRef.value.pause()
+                isPlaying.value = false
             } else {
-                audioRef.value.play()
+                if (currentSong.value.url) {
+                    audioRef.value.play().then(() => {
+                        console.log('[MusicStore] Manual play succeeded')
+                    }).catch(e => {
+                        // Ignore AbortError (interrupted by pause)
+                        if (e.name === 'AbortError') {
+                            console.log('[MusicStore] Play interrupted (normal)')
+                            return
+                        }
+                        console.warn('[MusicStore] Manual play failed:', e)
+                        isPlaying.value = false
+                        import('vant').then(({ showToast }) => showToast(`Play failed: ${e.message}`))
+                    })
+                    isPlaying.value = true
+                } else {
+                    console.warn('[MusicStore] Toggle Play ignored: No URL')
+                    import('vant').then(({ showToast }) => showToast('Song is loading...'))
+                }
             }
-            isPlaying.value = !isPlaying.value
+        } else {
+            console.warn('[MusicStore] Toggle Play ignored: No song or audio ref')
         }
     }
 
@@ -239,9 +285,7 @@ export const useMusicStore = defineStore('music', () => {
 
             audioContext.value = ctx
             analyser.value = ana
-            console.log('[MusicStore] AudioContext initialized')
         } catch (e) {
-            console.error('[MusicStore] Failed to init AudioContext:', e)
         }
     }
 
@@ -267,4 +311,3 @@ export const useMusicStore = defineStore('music', () => {
         initAudioContext
     }
 })
-

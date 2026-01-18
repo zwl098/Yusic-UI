@@ -12,17 +12,5 @@ const app = createApp(App)
 app.use(createPinia())
 app.use(router)
 
-// Global Error Handler
-app.config.errorHandler = (err, instance, info) => {
-    console.error('[Global Error]', err)
-    console.error('[Vue Info]', info)
-    // Optional: Send to logging service
-}
-
-// Global Promise Rejection Handler
-window.addEventListener('unhandledrejection', (event) => {
-    console.warn('[Unhandled Rejection]', event.reason)
-    event.preventDefault()
-})
 
 app.mount('#app')

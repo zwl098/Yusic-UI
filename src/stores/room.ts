@@ -62,7 +62,6 @@ export const useRoomStore = defineStore('room', () => {
     const onSyncUpdate = async (msg: SyncEvent) => {
         if (msg.roomId !== roomId.value) return
 
-        console.log('[Room] Sync Update:', msg)
         setRemoteUpdate(true)
 
         try {
@@ -74,7 +73,6 @@ export const useRoomStore = defineStore('room', () => {
                     if (audio) {
                         const diff = Math.abs(audio.currentTime - offset)
                         if (diff > 0.5) { // Threshold 0.5s
-                            console.log(`[Sync] Adjusting time: ${audio.currentTime} -> ${offset}`)
                             musicStore.seek(offset)
                         }
                     }
@@ -104,7 +102,6 @@ export const useRoomStore = defineStore('room', () => {
                     const info = decodeSongId(msg.songId)
                     if (info) {
                         if (musicStore.currentSong?.id !== info.id) {
-                            console.log('[Sync] Song Change:', info)
                             // We need to fetch song info
                             // Ideally, we should show a loading state
                             try {
@@ -116,6 +113,8 @@ export const useRoomStore = defineStore('room', () => {
                                     // Actually getMusicInfo usually returns detailed info.
                                     // Let's assume standard structure or basic reconstruction
                                     const d = songData.data
+                                    console.log('[RoomStore] Remote Update. Song Info:', d)
+                                    const safeLrc = await processLyrics(d.lrc)
                                     // Note: API might vary. If fetch fails, we can't play.
                                     const newSong: Song = {
                                         id: info.id,
@@ -125,12 +124,11 @@ export const useRoomStore = defineStore('room', () => {
                                         album: d.album || '',
                                         cover: d.pic || '',
                                         url: '', // playSong will fetch url
-                                        lrc: d.lrc
+                                        lrc: safeLrc
                                     }
                                     musicStore.playSong(newSong)
                                 }
                             } catch (e) {
-                                console.error('Failed to load song info:', e)
                                 showToast('Failed to load synced song')
                             }
                         }
@@ -191,9 +189,32 @@ export const useRoomStore = defineStore('room', () => {
         }
     }
 
+    // Helper to fetch lyrics if URL
+    const processLyrics = async (lrc: string | undefined): Promise<string> => {
+        if (!lrc) return ''
+        if (lrc.startsWith('http')) {
+            try {
+                let fetchUrl = lrc
+                // CORS Proxy (Dev)
+                if (import.meta.env.DEV && lrc.includes('music-dl.sayqz.com/api')) {
+                    fetchUrl = lrc.replace('https://music-dl.sayqz.com/api', '/api')
+                }
+                const res = await fetch(fetchUrl)
+                const text = await res.text()
+                // Simple validation
+                if (text && !text.trim().toLowerCase().startsWith('<!doctype')) {
+                    return text
+                }
+            } catch (e) {
+                console.warn('[RoomStore] Failed to fetch lyrics:', e)
+            }
+            return '' // failed
+        }
+        return lrc
+    }
+
     // Applying Room State (from HTTP)
     const applyRoomState = async (state: RoomState) => {
-        console.log('[Room] Applying State:', state)
         setRemoteUpdate(true)
 
         try {
@@ -205,6 +226,8 @@ export const useRoomStore = defineStore('room', () => {
                     const songData = await tunefreeApi.getMusicInfo(info.id, info.source)
                     if (songData?.data) {
                         const d = songData.data
+                        console.log('[RoomStore] Joined. Song Info:', d)
+                        const safeLrc = await processLyrics(d.lrc)
                         const newSong: Song = {
                             id: info.id,
                             source: info.source,
@@ -213,7 +236,7 @@ export const useRoomStore = defineStore('room', () => {
                             album: d.album || '',
                             cover: d.pic || '',
                             url: '',
-                            lrc: d.lrc
+                            lrc: safeLrc
                         }
                         await musicStore.playSong(newSong)
                     }
@@ -229,10 +252,17 @@ export const useRoomStore = defineStore('room', () => {
                 // But server is authority.
 
                 musicStore.seek(targetTime)
-                if (!musicStore.isPlaying) {
+                if (!musicStore.isPlaying && musicStore.currentSong?.url) {
                     // Ensure playback
-                    musicStore.audioRef?.play()
-                    musicStore.isPlaying = true
+                    try {
+                        await import('vue').then(({ nextTick }) => nextTick())
+                        await musicStore.audioRef?.play()
+                        musicStore.isPlaying = true
+                    } catch (e: any) {
+                        console.warn('Autoplay blocked:', e)
+                        musicStore.isPlaying = false
+                        import('vant').then(({ showToast }) => showToast('Click Play to Sync'))
+                    }
                 }
             } else {
                 if (state.pauseTime !== null) {
@@ -242,7 +272,6 @@ export const useRoomStore = defineStore('room', () => {
                 musicStore.isPlaying = false
             }
         } catch (e) {
-            console.error('Error applying state:', e)
         } finally {
             setTimeout(() => { isRemoteUpdate.value = false }, 1000)
         }
@@ -285,7 +314,6 @@ export const useRoomStore = defineStore('room', () => {
             socket.value?.emit('join', id)
 
         } catch (e: any) {
-            console.error('Join Error:', e)
             roomId.value = null
             localStorage.removeItem('yusic_room_id')
             error.value = "Room not found or error"
@@ -310,7 +338,6 @@ export const useRoomStore = defineStore('room', () => {
             // We pass songId to play just in case, or if it changed
             await roomApi.play(roomId.value, compositeId)
         } catch (e) {
-            console.error('Play op failed', e)
         }
     }
 
@@ -318,7 +345,7 @@ export const useRoomStore = defineStore('room', () => {
         if (isRemoteUpdate.value || !roomId.value) return
         try {
             await roomApi.pause(roomId.value)
-        } catch (e) { console.error(e) }
+        } catch (e) { }
     }
 
     const emitChangeSong = async (song: Song) => {
@@ -326,7 +353,7 @@ export const useRoomStore = defineStore('room', () => {
         try {
             const compositeId = encodeSongId(song)
             await roomApi.changeSong(roomId.value, compositeId)
-        } catch (e) { console.error(e) }
+        } catch (e) { }
     }
 
     // Watchers
@@ -334,10 +361,6 @@ export const useRoomStore = defineStore('room', () => {
         if (roomId.value && !isRemoteUpdate.value && newSong) {
             if (!oldSong || oldSong.id !== newSong.id) {
                 emitChangeSong(newSong)
-                // And then Play? Doc says Change Song doesn't play.
-                // We might want to call emitPlay(newSong) instead of emitChangeSong?
-                // Let's try emitPlay(newSong).
-                // Actually `emitPlay` handles it.
             }
         }
     }, { deep: true })
@@ -383,6 +406,12 @@ export const useRoomStore = defineStore('room', () => {
         }
     }
 
+    const emitTyping = () => {
+        if (roomId.value && socket.value) {
+            socket.value.emit('typing', roomId.value)
+        }
+    }
+
     return {
         socket,
         roomId,
@@ -394,6 +423,9 @@ export const useRoomStore = defineStore('room', () => {
         joinRoom,
         leaveRoom,
         emitEmote,
+        emitTyping,
+        emitPlay,
+        emitPause,
         isLoading,
         error,
         isRemoteUpdate

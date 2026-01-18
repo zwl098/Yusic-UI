@@ -11,22 +11,7 @@ const togglePlay = () => {
     // Trigger local toggle
     // If currently playing, it will pause. If paused, it will play.
     musicStore.togglePlay()
-    
-    // Sync with room
-    if (roomStore.roomId && !roomStore.isRemoteUpdate) {
-        if (musicStore.isPlaying) {
-             // It just started playing
-             if (musicStore.currentSong) {
-                // If we are resuming, we might want to just emit play?
-                // The room store 'sync:play' expects a song. 
-                roomStore.emitPlay(musicStore.currentSong)
-             }
-        } else {
-             // It just paused
-             roomStore.emitPause()
-        }
-    }
-    }
+}
 
 const showQueue = ref(false)
 const showFullPlayer = ref(false)
@@ -97,23 +82,12 @@ watch(() => [musicStore.audioRef, musicStore.isPlaying], ([ref, playing]) => {
       v-if="musicStore.currentSong"
       :src="musicStore.currentSong.url" 
       crossorigin="anonymous"
-      autoplay
       playsinline
       @play="musicStore.isPlaying = true"
       @pause="musicStore.isPlaying = false"
       @ended="onNext"
       @timeupdate="(e) => musicStore.currentTime = (e.target as HTMLAudioElement).currentTime"
       @loadedmetadata="(e) => musicStore.duration = (e.target as HTMLAudioElement).duration"
-      @error="(e) => {
-          const target = e.target as HTMLAudioElement;
-          console.error('[Audio] Error Event:', target.error);
-          import('vant').then(({ showFailToast }) => {
-                showFailToast({
-                    message: `Audio Error: ${target.error?.code} - ${target.error?.message}`,
-                    duration: 5000
-                })
-           })
-      }"
       :ref="(el) => { if(el) musicStore.audioRef = el as HTMLAudioElement }"
     ></audio>
 

@@ -24,19 +24,26 @@ export const useMusicStore = defineStore('music', () => {
     const searchMusic = async (keyword: string, source: MusicSource = 'netease') => {
         try {
             const res = await tunefreeApi.search(keyword, source)
-            if (res.code === 200 && res.data && res.data.results) {
-                return res.data.results.map((item: any) => ({
+            // 适配后端返回结构: { data: { list: [...] } }
+            const list = res.data?.list || res.data?.results || res.results || []
+
+            if (res.code === 200 && list.length > 0) {
+                return list.map((item: any) => ({
                     id: item.id,
                     name: item.name,
-                    artist: item.artist,
+                    // 适配 artist 数组
+                    artist: Array.isArray(item.artist) ? item.artist.join(', ') : item.artist,
                     album: item.album,
                     source: item.platform || source,
-                    url: item.url.replace(/http:/g, 'https:'),
-                    cover: item.pic.replace(/http:/g, 'https:')
+                    // 搜索结果可能没有 URL，给空字符串，播放时会异步获取
+                    url: item.url ? item.url.replace(/http:/g, 'https:') : '',
+                    // 适配 cover/pic 字段
+                    cover: (item.cover || item.pic || '').replace(/http:/g, 'https:')
                 }))
             }
             return []
         } catch (error) {
+            console.error('[MusicStore] Search error:', error)
             return []
         }
     }
@@ -165,7 +172,7 @@ export const useMusicStore = defineStore('music', () => {
         try {
             // 1. Get Fresh URL via direct link (Backend redirects to file)
             // console.log('[MusicStore] Constructing URL for:', song.name, song.id)
-            const finalUrl = tunefreeApi.getAudioSrc(song.id, song.source)
+            const finalUrl = await tunefreeApi.getAudioSrc(song.id, song.source)
 
             if (finalUrl) {
                 // Update URL

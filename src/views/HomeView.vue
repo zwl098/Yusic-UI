@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
 import { useMusicStore, type Song } from '@/stores/music'
+import type { MusicSource } from '@/services/tunefree'
 import { useRoomStore } from '@/stores/room'
 import { usePlaylistStore } from '@/stores/playlist'
 import { useFavoritesStore } from '@/stores/favorites' // [NEW]
@@ -16,6 +17,22 @@ const playlistStore = usePlaylistStore()
 const appStore = useAppStore()
 const favoritesStore = useFavoritesStore() // [NEW]
 
+const searchPlatform = ref<MusicSource>('kuwo')
+const showPlatformSelect = ref(false)
+const platforms = [
+    { text: '酷我', value: 'kuwo' },
+    { text: '网易', value: 'netease' },
+    { text: 'QQ', value: 'qq' },
+]
+
+const onSelectPlatform = (action: any) => {
+    searchPlatform.value = action.value
+    // If we have a keyword, trigger search immediately for better UX
+    if (keyword.value.trim()) {
+        onSearch()
+    }
+}
+
 // Version Easter Egg
 const appVersion = __APP_VERSION__
 const versionClickCount = ref(0)
@@ -23,12 +40,12 @@ let versionClickTimer: any = null
 
 const handleTitleClick = () => {
     versionClickCount.value++
-    
+
     if (versionClickTimer) clearTimeout(versionClickTimer)
     versionClickTimer = setTimeout(() => {
         versionClickCount.value = 0
     }, 500)
-    
+
     if (versionClickCount.value >= 5) {
         showToast(`v${appVersion}`)
         versionClickCount.value = 0
@@ -56,13 +73,13 @@ const saveHistory = (kw: string) => {
     // Remove if exists
     const idx = searchHistory.value.indexOf(kw)
     if (idx > -1) searchHistory.value.splice(idx, 1)
-    
+
     // Add to front
     searchHistory.value.unshift(kw)
-    
+
     // Limit to 10
     if (searchHistory.value.length > 10) searchHistory.value.pop()
-    
+
     localStorage.setItem('search_history', JSON.stringify(searchHistory.value))
 }
 
@@ -80,7 +97,7 @@ const onSearch = async () => {
   if (searchTimer) clearTimeout(searchTimer)
   await nextTick()
   if (searchTimer) clearTimeout(searchTimer)
-  
+
   const searchKw = keyword.value
   if (!searchKw.trim()) {
       searchResults.value = []
@@ -88,8 +105,8 @@ const onSearch = async () => {
   }
   loading.value = true
   try {
-      const results = await musicStore.searchMusic(searchKw)
-      
+      const results = await musicStore.searchMusic(searchKw, searchPlatform.value)
+
       // If keyword changed (e.g. cleared) while searching, ignore results
       if (keyword.value !== searchKw) return
 
@@ -156,7 +173,7 @@ const addToPlaylist = (playlistId: string) => {
 
 const addToQueue = (song: Song, event?: MouseEvent) => {
     const success = musicStore.addToQueue(song)
-    
+
     // Always show checkmark to confirm it is in the queue
     addedSongs.value.add(song.id)
     setTimeout(() => {
@@ -189,45 +206,45 @@ const insertToQueue = (song: Song, event?: MouseEvent) => {
       <h1 class="app-title" @click="handleTitleClick">Yusic</h1>
       <p class="app-subtitle">Discover your rhythm</p>
       <div class="header-actions">
-           <van-button 
+           <van-button
              v-if="appStore.showInstallButton"
-             icon="down" 
-             size="small" 
-             round 
-             color="rgba(255,255,255,0.2)" 
+             icon="down"
+             size="small"
+             round
+             color="rgba(255,255,255,0.2)"
              style="border:none; color: white; margin-right: 8px;"
              @click="appStore.installApp()"
            >
              Install
            </van-button>
 
-           <van-button 
-             icon="friends-o" 
-             size="small" 
-             round 
-             color="rgba(255,255,255,0.2)" 
+           <van-button
+             icon="friends-o"
+             size="small"
+             round
+             color="rgba(255,255,255,0.2)"
              style="border:none; color: white;"
              to="/room"
            >
              Together
            </van-button>
-           
+
            <!-- Play Random Favorite -->
-           <van-button 
-             icon="like-o" 
-             size="small" 
-             round 
-             color="rgba(255,255,255,0.2)" 
+           <van-button
+             icon="like-o"
+             size="small"
+             round
+             color="rgba(255,255,255,0.2)"
              style="border:none; color: white; margin-left: 8px;"
              @click="favoritesStore.playRandomFavorite()"
            >
              Fav Mix
            </van-button>
-           <!-- <van-button 
-             icon="music-o" 
-             size="small" 
-             round 
-             color="rgba(255,255,255,0.2)" 
+           <!-- <van-button
+             icon="music-o"
+             size="small"
+             round
+             color="rgba(255,255,255,0.2)"
              style="border:none; color: white; margin-left: 8px;"
              to="/playlists"
            >
@@ -237,14 +254,30 @@ const insertToQueue = (song: Song, event?: MouseEvent) => {
     </div>
 
     <div class="search-section">
-       <van-search 
-         v-model="keyword" 
-         placeholder="Search for songs, artists..." 
+       <van-search
+         v-model="keyword"
+         placeholder="Search for songs, artists..."
          shape="round"
          background="transparent"
          clearable
-         @search="onSearch" 
-       />
+         @search="onSearch"
+       >
+        <template #label>
+            <van-popover
+                v-model:show="showPlatformSelect"
+                :actions="platforms"
+                @select="onSelectPlatform"
+                placement="bottom-start"
+            >
+                <template #reference>
+                    <div class="platform-select">
+                        <span>{{ platforms.find(p => p.value === searchPlatform)?.text }}</span>
+                        <van-icon name="arrow-down" size="10" style="margin-left: 2px; opacity: 0.5;" />
+                    </div>
+                </template>
+            </van-popover>
+        </template>
+       </van-search>
     </div>
 
     <!-- Search History -->
@@ -254,12 +287,12 @@ const insertToQueue = (song: Song, event?: MouseEvent) => {
             <van-icon name="delete-o" @click="clearHistory" />
         </div>
         <div class="history-tags">
-            <van-tag 
-                v-for="item in searchHistory" 
-                :key="item" 
-                round 
-                size="medium" 
-                color="#f0f0f0" 
+            <van-tag
+                v-for="item in searchHistory"
+                :key="item"
+                round
+                size="medium"
+                color="#f0f0f0"
                 text-color="#666"
                 class="history-tag"
                 @click="onHistoryClick(item)"
@@ -274,20 +307,20 @@ const insertToQueue = (song: Song, event?: MouseEvent) => {
         <van-loading type="spinner" color="#6200ea" />
         <p>Searching...</p>
       </div>
-      
+
       <TransitionGroup name="list" tag="div" class="song-list" v-else-if="searchResults.length > 0" appear>
-        <div 
-          v-for="(song, index) in searchResults" 
-          :key="song.id" 
+        <div
+          v-for="(song, index) in searchResults"
+          :key="song.id"
           class="song-card"
           :style="{ transitionDelay: `${index * 0.05}s` }"
           @click="onPlay(song)"
         >
           <div class="card-image">
-            <van-image 
-                width="100%" 
-                height="100%" 
-                fit="cover" 
+            <van-image
+                width="100%"
+                height="100%"
+                fit="cover"
                 :src="song.cover || 'https://via.placeholder.com/60'"
             >
                 <template v-slot:loading>
@@ -311,24 +344,24 @@ const insertToQueue = (song: Song, event?: MouseEvent) => {
             <!-- 加歌单，暂时不可用 -->
               <!-- <van-icon name="plus" class="add-btn" @click.stop="openAddToPlaylist(song)" style="margin-right: 8px;" /> -->
               <transition name="van-fade" mode="out-in">
-                  <van-icon 
-                    v-if="addedSongs.has(song.id)" 
-                    name="success" 
-                    class="add-btn success" 
+                  <van-icon
+                    v-if="addedSongs.has(song.id)"
+                    name="success"
+                    class="add-btn success"
                     key="success"
                   />
                   <div class="action-group" v-else>
-                      <van-icon 
-                        name="upgrade" 
-                        class="add-btn" 
-                        @click.stop="insertToQueue(song, $event)" 
+                      <van-icon
+                        name="upgrade"
+                        class="add-btn"
+                        @click.stop="insertToQueue(song, $event)"
                         style="transform: rotate(90deg);"
                         title="Play Next"
                       />
-                      <van-icon 
-                        name="clock-o" 
-                        class="add-btn" 
-                        @click.stop="addToQueue(song, $event)" 
+                      <van-icon
+                        name="clock-o"
+                        class="add-btn"
+                        @click.stop="addToQueue(song, $event)"
                         key="add"
                         title="Add to Queue"
                       />
@@ -347,9 +380,9 @@ const insertToQueue = (song: Song, event?: MouseEvent) => {
 
     <van-action-sheet v-model:show="showAddToPlaylist" title="Add to Playlist">
         <div class="playlist-sheet">
-            <div 
-                v-for="playlist in playlistStore.playlists" 
-                :key="playlist.id" 
+            <div
+                v-for="playlist in playlistStore.playlists"
+                :key="playlist.id"
                 class="sheet-item"
                 @click="addToPlaylist(playlist.id)"
             >
@@ -447,6 +480,19 @@ const insertToQueue = (song: Song, event?: MouseEvent) => {
   border-radius: 24px;
   padding: 6px 6px 6px 12px;
 }
+
+.platform-select {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    color: #333;
+    font-weight: 600;
+    padding-right: 8px;
+    border-right: 1px solid rgba(0,0,0,0.05);
+    margin-right: 4px;
+    height: 24px;
+}
+
 
 /* History */
 .history-section {

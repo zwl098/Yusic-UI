@@ -61,7 +61,7 @@ export const tunefreeApi = {
      * @param id Song ID
      * @param source Music source
      */
-    getMusicInfo: (id: string, source: MusicSource) => {
+    getMusicInfo: (id: string, source: MusicSource): Promise<any> => {
         // Not implemented in backend yet, using search or specific details if needed
         // For now, keep it as placeholder or remove if unused
         return Promise.reject('Not implemented')

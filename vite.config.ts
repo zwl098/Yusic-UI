@@ -79,7 +79,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://159.75.236.77',
+        target: 'http://159.75.236.77/api',
         changeOrigin: true,
         rewrite: (path) => {
           // If it is /api/rooms..., strip /api

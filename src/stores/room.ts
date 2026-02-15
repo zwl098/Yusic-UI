@@ -197,7 +197,7 @@ export const useRoomStore = defineStore('room', () => {
                 let fetchUrl = lrc
                 // CORS Proxy (Dev)
                 if (import.meta.env.DEV && lrc.includes('159.75.236.77:3000/api')) {
-                    fetchUrl = lrc.replace('http://159.75.236.77:3000', '/api')
+                    fetchUrl = lrc.replace('http://159.75.236.77', '/api')
                 }
                 const res = await fetch(fetchUrl)
                 const text = await res.text()

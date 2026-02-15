@@ -8,7 +8,7 @@ export interface ApiResponse<T = any> {
     [key: string]: any
 }
 
-export const BASE_URL = import.meta.env.DEV ? '/api' : 'https://music-dl.sayqz.com/api'
+export const BASE_URL = import.meta.env.DEV ? '/api' : 'http://159.75.236.77:3000'
 
 const instance = axios.create({
     baseURL: BASE_URL,

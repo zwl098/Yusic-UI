@@ -196,8 +196,8 @@ export const useRoomStore = defineStore('room', () => {
             try {
                 let fetchUrl = lrc
                 // CORS Proxy (Dev)
-                if (import.meta.env.DEV && lrc.includes('music-dl.sayqz.com/api')) {
-                    fetchUrl = lrc.replace('https://music-dl.sayqz.com/api', '/api')
+                if (import.meta.env.DEV && lrc.includes('159.75.236.77:3000/api')) {
+                    fetchUrl = lrc.replace('http://159.75.236.77:3000', '/api')
                 }
                 const res = await fetch(fetchUrl)
                 const text = await res.text()

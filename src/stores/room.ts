@@ -82,7 +82,7 @@ export const useRoomStore = defineStore('room', () => {
                 if (!musicStore.isPlaying) {
                     // If paused, play
                     musicStore.togglePlay()
-                    // Note: musicStore.playSong usually plays automatically. 
+                    // Note: musicStore.playSong usually plays automatically.
                     // If we are just resuming:
                     if (musicStore.audioRef?.paused) {
                         musicStore.audioRef.play()
@@ -108,7 +108,7 @@ export const useRoomStore = defineStore('room', () => {
                                 const songData = await tunefreeApi.getMusicInfo(info.id, info.source)
                                 if (songData && songData.code === 200 && songData.data) {
                                     // Map to Song object
-                                    // This mapping depends on API response structure. 
+                                    // This mapping depends on API response structure.
                                     // Assuming getMusicInfo returns similar structure to search result or we might need search.
                                     // Actually getMusicInfo usually returns detailed info.
                                     // Let's assume standard structure or basic reconstruction
@@ -139,9 +139,9 @@ export const useRoomStore = defineStore('room', () => {
                 // Spec says: "切歌后 isPlaying=false".
                 // So if we just called playSong, it might auto play. We might need to pause it if subsequent PLAY hasn't arrived?
                 // Actually `playSong` in musicStore fetches URL and then plays.
-                // If backend says SONG_CHANGE, it implies switching. 
-                // We should probably wait for PLAY to resume? 
-                // But users expect auto-play. 
+                // If backend says SONG_CHANGE, it implies switching.
+                // We should probably wait for PLAY to resume?
+                // But users expect auto-play.
                 // If typical flow is Change -> Play, then we can let it be.
             }
         } finally {
@@ -196,8 +196,9 @@ export const useRoomStore = defineStore('room', () => {
             try {
                 let fetchUrl = lrc
                 // CORS Proxy (Dev)
-                if (import.meta.env.DEV && lrc.includes('music-dl.sayqz.com/api')) {
-                    fetchUrl = lrc.replace('https://music-dl.sayqz.com/api', '/api')
+                const apiUrl = import.meta.env.VITE_API_URL
+                if (import.meta.env.DEV && lrc.includes(apiUrl)) {
+                    fetchUrl = lrc.replace(apiUrl, '/api')
                 }
                 const res = await fetch(fetchUrl)
                 const text = await res.text()
@@ -247,7 +248,7 @@ export const useRoomStore = defineStore('room', () => {
             if (state.isPlaying) {
                 const offset = (Date.now() - (state.startTime || 0)) / 1000
                 // Use offset if reasonable, else state.currentTime
-                let targetTime = offset
+                const targetTime = offset
                 // Optimization: if offset is way off (e.g. neg), maybe fallback to currentTime?
                 // But server is authority.
 
@@ -327,7 +328,7 @@ export const useRoomStore = defineStore('room', () => {
     const emitPlay = async (song: Song) => {
         if (isRemoteUpdate.value || !roomId.value) return
 
-        // If it's a new song, use changeSong? 
+        // If it's a new song, use changeSong?
         // Doc says: "Play... if songId provided... switch and play"
         // But also "Change Song" endpoint exists.
         // Let's use Play with songId if song changed.
@@ -397,7 +398,7 @@ export const useRoomStore = defineStore('room', () => {
     }
 
     // Emote/Typing (Keep as Socket Emits for now as they are ephemeral?)
-    // Doc doesn't say Emote/Typing must be HTTP. 
+    // Doc doesn't say Emote/Typing must be HTTP.
     // Usually these are pure ephemeral info.
     const emitEmote = (emoji: string) => {
         if (roomId.value && socket.value) {

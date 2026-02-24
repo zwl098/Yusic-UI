@@ -79,22 +79,11 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://159.75.236.77:3000',
+        target: 'https://zhangwenling.qzz.io/api',
         changeOrigin: true,
+        secure: false, // 允许无效证书（以防万一）
         rewrite: (path) => {
-          // If it is /api/rooms..., strip /api
-          if (path.startsWith('/api/rooms')) {
-            return path.replace(/^\/api/, '')
-          }
-          // Otherwise keep /api (which backend proxies to music-dl)
-          return path
-        },
-        configure: (proxy, _options) => {
-          proxy.on('proxyRes', (proxyRes, _req, _res) => {
-            if (proxyRes.headers['location']) {
-              proxyRes.headers['location'] = proxyRes.headers['location'].replace(/^http:\/\//, 'https://')
-            }
-          })
+          return path.replace(/^\/api/, '')
         }
       }
     }

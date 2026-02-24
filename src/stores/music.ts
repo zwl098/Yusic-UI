@@ -85,8 +85,9 @@ export const useMusicStore = defineStore('music', () => {
 
                 // CORS Proxy Fix for Dev
                 let fetchUrl = lyricText
-                if (import.meta.env.DEV && lyricText.includes('music-dl.sayqz.com/api')) {
-                    fetchUrl = lyricText.replace('https://music-dl.sayqz.com/api', '/api')
+                const apiUrl = import.meta.env.VITE_API_URL
+                if (import.meta.env.DEV && lyricText.includes(apiUrl)) {
+                    fetchUrl = lyricText.replace(apiUrl, '/api')
                     console.log('[MusicStore] Rewrote URL for proxy:', fetchUrl)
                 }
 

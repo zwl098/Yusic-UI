@@ -8,7 +8,7 @@
 
 **基础 URL:**
 - 开发环境: `/api` (代理)
-- 生产环境: `https://music-dl.sayqz.com/api`
+- 生产环境: `https://zhangwenling.qzz.io/api`
 
 **响应格式:**
 除特殊说明（如获取播放链接）外，API 通常返回如下 JSON 结构:

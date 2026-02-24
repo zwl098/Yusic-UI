@@ -44,7 +44,7 @@ export const musicApi = {
      */
     getStreamUrl: (url: string) => {
         // 直接返回完整的代理 URL，不需要 request 请求
-        const baseUrl = import.meta.env.DEV ? '/api' : 'https://music-dl.sayqz.com/api'
+        const baseUrl = import.meta.env.DEV ? '/api' : import.meta.env.VITE_API_URL
         return `${baseUrl}/music/stream?url=${encodeURIComponent(url)}`
     }
 }
